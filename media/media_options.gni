@@ -94,7 +94,7 @@ declare_args() {
   use_pulseaudio = false
 
   # Enables runtime selection of ALSA library for audio.
-  use_alsa = false
+  use_alsa = true
 
   # Alsa should be used on non-Android, non-Mac POSIX systems.
   # Alsa should be used on desktop Chromecast and audio-only Chromecast builds.

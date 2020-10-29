@@ -128,8 +128,9 @@ void SetExperimentIds(const base::ListValue& list) {
 
 // Allows applications to access media capture devices (webcams/microphones)
 // through getUserMedia API.
+//VINOD: Move it to command line ARGS
 const base::Feature kAllowUserMediaAccess{"allow_user_media_access",
-                                          base::FEATURE_DISABLED_BY_DEFAULT};
+                                          base::FEATURE_ENABLED_BY_DEFAULT};
 // Enables the use of QUIC in Cast-specific URLRequestContextGetters. See
 // chromecast/browser/url_request_context_factory.cc for usage.
 const base::Feature kEnableQuic{"enable_quic",

@@ -9,13 +9,21 @@
 #include <sys/mman.h>
 #include <sys/poll.h>
 #include <unistd.h>
+#include <errno.h>
+#include <stdio.h>
+#include <fcntl.h>
 
 namespace media {
 
 V4L2CaptureDeviceImpl::~V4L2CaptureDeviceImpl() = default;
 
 int V4L2CaptureDeviceImpl::open(const char* device_name, int flags) {
-  return ::open(device_name, flags);
+  int fd = ::open(device_name, flags);
+  if (fd ==-1) {
+    printf("Failed to open %s. Error Number % d\n", device_name, errno);
+    perror("Failed: ");
+  }
+  return fd;
 }
 
 int V4L2CaptureDeviceImpl::close(int fd) {
