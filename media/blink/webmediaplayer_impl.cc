@@ -54,7 +54,13 @@
 #include "media/blink/webmediasource_impl.h"
 #include "media/filters/chunk_demuxer.h"
 #include "media/filters/ffmpeg_demuxer.h"
+#include "media/filters/frame_demuxer.h"
 #include "media/media_buildflags.h"
+#include "content/public/renderer/media_stream_renderer_factory.h"
+#include "content/renderer/media/web_media_element_source_utils.h"
+#include "content/renderer/media/stream/media_stream_audio_track.h"
+#include "content/renderer/media/stream/media_stream_video_track.h"
+#include "content/renderer/render_frame_impl.h"
 #include "third_party/blink/public/common/picture_in_picture/picture_in_picture_control_info.h"
 #include "third_party/blink/public/platform/web_encrypted_media_types.h"
 #include "third_party/blink/public/platform/web_localized_string.h"
@@ -69,6 +75,8 @@
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_surface_layer_bridge.h"
 #include "third_party/blink/public/platform/web_url.h"
+#include "third_party/blink/public/platform/web_media_player_source.h"
+#include "third_party/blink/public/platform/web_media_stream.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_frame.h"
 #include "third_party/blink/public/web/web_local_frame.h"
@@ -212,6 +220,26 @@ bool IsLocalFile(const GURL& url) {
 
 }  // namespace
 
+enum class RendererReloadAction {
+  KEEP_RENDERER,
+  REMOVE_RENDERER,
+  NEW_RENDERER
+};
+
+bool IsPlayableTrack(const blink::WebMediaStreamTrack& track) {
+  return !track.IsNull() && !track.Source().IsNull() &&
+         track.Source().GetReadyState() !=
+             blink::WebMediaStreamSource::kReadyStateEnded;
+}
+
+blink::WebMediaStream GetWebMediaStreamFromWebMediaPlayerSource(
+    const blink::WebMediaPlayerSource& source) {
+  if (source.IsMediaStream())
+    return source.GetAsMediaStream();
+
+  return blink::WebMediaStream();
+}
+
 class BufferedDataSourceHostImpl;
 
 STATIC_ASSERT_ENUM(WebMediaPlayer::kCorsModeUnspecified,
@@ -220,11 +248,106 @@ STATIC_ASSERT_ENUM(WebMediaPlayer::kCorsModeAnonymous, UrlData::CORS_ANONYMOUS);
 STATIC_ASSERT_ENUM(WebMediaPlayer::kCorsModeUseCredentials,
                    UrlData::CORS_USE_CREDENTIALS);
 
+// FrameDeliverer is responsible for delivering frames received on
+// the IO thread by calling of EnqueueFrame() method of |compositor_|.
+//
+// It is created on the main thread, but methods should be called and class
+// should be destructed on the IO thread.
+class WebMediaPlayerImpl::FrameDeliverer {
+ public:
+  typedef base::Callback<void(scoped_refptr<media::VideoFrame>)> RepaintCB;
+
+  FrameDeliverer(const base::WeakPtr<WebMediaPlayerImpl>& player,
+                 const RepaintCB& enqueue_frame_cb,
+                 scoped_refptr<base::SingleThreadTaskRunner> media_task_runner,
+                 scoped_refptr<base::TaskRunner> worker_task_runner)
+      : main_task_runner_(base::ThreadTaskRunnerHandle::Get()),
+        player_(player),
+        enqueue_frame_cb_(enqueue_frame_cb),
+        media_task_runner_(media_task_runner),
+        weak_factory_for_pool_(this),
+        weak_factory_(this) {
+    io_thread_checker_.DetachFromThread();
+  }
+
+  ~FrameDeliverer() {
+    DCHECK(io_thread_checker_.CalledOnValidThread());
+  }
+
+  void OnVideoFrame(scoped_refptr<media::VideoFrame> frame) {
+    DCHECK(io_thread_checker_.CalledOnValidThread());
+    EnqueueFrame(std::move(frame));
+    return;
+  }
+
+  void SetRenderFrameSuspended(bool render_frame_suspended) {
+    DCHECK(io_thread_checker_.CalledOnValidThread());
+    render_frame_suspended_ = render_frame_suspended;
+  }
+
+  RepaintCB GetRepaintCallback() {
+    return base::Bind(&FrameDeliverer::OnVideoFrame,
+                      weak_factory_.GetWeakPtr());
+  }
+
+ private:
+  friend class WebMediaPlayerImpl;
+
+  void EnqueueFrame(const scoped_refptr<media::VideoFrame>& frame) {
+    DCHECK(io_thread_checker_.CalledOnValidThread());
+
+    {
+      bool tracing_enabled = false;
+      TRACE_EVENT_CATEGORY_GROUP_ENABLED("media", &tracing_enabled);
+      if (tracing_enabled) {
+        base::TimeTicks render_time;
+        if (frame->metadata()->GetTimeTicks(
+                media::VideoFrameMetadata::REFERENCE_TIME, &render_time)) {
+          TRACE_EVENT1("media", "EnqueueFrame", "Ideal Render Instant",
+                       render_time.ToInternalValue());
+        } else {
+          TRACE_EVENT0("media", "EnqueueFrame");
+        }
+      }
+    }
+
+    enqueue_frame_cb_.Run(frame);
+  }
+
+  void DropCurrentPoolTasks() {
+    DCHECK(io_thread_checker_.CalledOnValidThread());
+
+    if (!weak_factory_for_pool_.HasWeakPtrs())
+      return;
+
+    weak_factory_for_pool_.InvalidateWeakPtrs();
+  }
+
+  bool render_frame_suspended_ = false;
+
+  const scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
+  const base::WeakPtr<WebMediaPlayerImpl> player_;
+  const RepaintCB enqueue_frame_cb_;
+
+  const scoped_refptr<base::SingleThreadTaskRunner> media_task_runner_;
+
+  // Used for DCHECKs to ensure method calls are executed on the correct thread.
+  base::ThreadChecker io_thread_checker_;
+
+  base::WeakPtrFactory<FrameDeliverer> weak_factory_for_pool_;
+  base::WeakPtrFactory<FrameDeliverer> weak_factory_;
+
+  DISALLOW_COPY_AND_ASSIGN(FrameDeliverer);
+};
+
 WebMediaPlayerImpl::WebMediaPlayerImpl(
     blink::WebLocalFrame* frame,
     blink::WebMediaPlayerClient* client,
     blink::WebMediaPlayerEncryptedMediaClient* encrypted_client,
     WebMediaPlayerDelegate* delegate,
+	std::unique_ptr<content::MediaStreamRendererFactory> factory,
+	scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
+	const blink::WebString& sink_id,
     std::unique_ptr<RendererFactorySelector> renderer_factory_selector,
     UrlIndex* url_index,
     std::unique_ptr<VideoFrameCompositor> compositor,
@@ -235,6 +358,8 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
       media_task_runner_(params->media_task_runner()),
       worker_task_runner_(params->worker_task_runner()),
       media_log_(params->take_media_log()),
+      renderer_factory_(std::move(factory)),
+      io_task_runner_(io_task_runner),
       pipeline_controller_(
           std::make_unique<PipelineImpl>(media_task_runner_,
                                          main_task_runner_,
@@ -272,7 +397,8 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
       create_bridge_callback_(params->create_bridge_callback()),
       request_routing_token_cb_(params->request_routing_token_cb()),
       overlay_routing_token_(OverlayInfo::RoutingToken()),
-      media_metrics_provider_(params->take_metrics_provider()) {
+      media_metrics_provider_(params->take_metrics_provider()),
+      initial_audio_output_device_id_(sink_id.Utf8()) {
   DVLOG(1) << __func__;
   DCHECK(adjust_allocated_memory_cb_);
   DCHECK(renderer_factory_selector_);
@@ -420,19 +546,27 @@ WebMediaPlayer::LoadTiming WebMediaPlayerImpl::Load(
     const blink::WebMediaPlayerSource& source,
     CorsMode cors_mode) {
   DVLOG(1) << __func__;
-  // Only URL or MSE blob URL is supported.
-  DCHECK(source.IsURL());
-  blink::WebURL url = source.GetAsURL();
-  DVLOG(1) << __func__ << "(" << load_type << ", " << GURL(url) << ", "
-           << cors_mode << ")";
+  // Only MediaStream, URL or MSE blob URL is supported.
+  web_stream_ = GetWebMediaStreamFromWebMediaPlayerSource(source);
+  DCHECK(source.IsURL() ||
+           (kLoadTypeMediaStream == load_type && !web_stream_.IsNull()));
+
+  if(source.IsURL()) {
+    blink::WebURL url = source.GetAsURL();
+       DVLOG(1) << __func__ << "(" << load_type << ", " << GURL(url) << ", "
+                << cors_mode << ")";
+  } else {
+       DVLOG(1) << __func__ << "(" << load_type << ", MediaStream, "
+                << cors_mode << ")";
+  }
 
   bool is_deferred = false;
 
   if (defer_load_cb_) {
     is_deferred = defer_load_cb_.Run(base::BindOnce(
-        &WebMediaPlayerImpl::DoLoad, AsWeakPtr(), load_type, url, cors_mode));
+        &WebMediaPlayerImpl::DoLoad, AsWeakPtr(), load_type, source, cors_mode));
   } else {
-    DoLoad(load_type, url, cors_mode);
+    DoLoad(load_type, source, cors_mode);
   }
 
   return is_deferred ? LoadTiming::kDeferred : LoadTiming::kImmediate;
@@ -589,38 +723,54 @@ void WebMediaPlayerImpl::OnDisplayTypeChanged(
 }
 
 void WebMediaPlayerImpl::DoLoad(LoadType load_type,
-                                const blink::WebURL& url,
+                                const blink::WebMediaPlayerSource& source,
                                 CorsMode cors_mode) {
   TRACE_EVENT1("media", "WebMediaPlayerImpl::DoLoad", "id", media_log_->id());
   DVLOG(1) << __func__;
   DCHECK(main_task_runner_->BelongsToCurrentThread());
 
-  GURL gurl(url);
-  ReportMetrics(load_type, gurl, *frame_, media_log_.get());
+  bool isWebStream = false;
+  if (!web_stream_.IsNull())
+	  isWebStream = true;
+  GURL gurl;
 
   // Report poster availability for SRC=.
-  if (load_type == kLoadTypeURL) {
-    if (preload_ == MultibufferDataSource::METADATA) {
-      UMA_HISTOGRAM_BOOLEAN("Media.SRC.PreloadMetaDataHasPoster", has_poster_);
-    } else if (preload_ == MultibufferDataSource::AUTO) {
-      UMA_HISTOGRAM_BOOLEAN("Media.SRC.PreloadAutoHasPoster", has_poster_);
+  //Load_types kLoadTypeMediaSource, kLoadTypeMediaStream &  kLoadTypeURL
+  if (isWebStream) {
+    web_stream_.AddObserver(this);
+  } else {
+    blink::WebURL url = source.GetAsURL();
+    gurl = GURL(url);
+    ReportMetrics(load_type, gurl, *frame_, media_log_.get());
+
+    if (load_type == kLoadTypeURL) {
+      if (preload_ == MultibufferDataSource::METADATA) {
+        UMA_HISTOGRAM_BOOLEAN("Media.SRC.PreloadMetaDataHasPoster", has_poster_);
+      } else if (preload_ == MultibufferDataSource::AUTO) {
+        UMA_HISTOGRAM_BOOLEAN("Media.SRC.PreloadAutoHasPoster", has_poster_);
+      }
     }
   }
 
-  // Set subresource URL for crash reporting.
-  static base::debug::CrashKeyString* subresource_url =
-      base::debug::AllocateCrashKeyString("subresource_url",
-                                          base::debug::CrashKeySize::Size256);
-  base::debug::SetCrashKeyString(subresource_url, gurl.spec());
+  if (!isWebStream) {
+    // Set subresource URL for crash reporting.
+    static base::debug::CrashKeyString* subresource_url =
+              base::debug::AllocateCrashKeyString("subresource_url",
+              base::debug::CrashKeySize::Size256);
 
-  // Used for HLS playback.
-  loaded_url_ = gurl;
+    base::debug::SetCrashKeyString(subresource_url, gurl.spec());
+    // Used for HLS playback.
+    loaded_url_ = gurl;
+  }
 
   load_type_ = load_type;
 
   SetNetworkState(WebMediaPlayer::kNetworkStateLoading);
   SetReadyState(WebMediaPlayer::kReadyStateHaveNothing);
-  media_log_->AddEvent(media_log_->CreateLoadEvent(url.GetString().Utf8()));
+  std::string stream_id = isWebStream ? web_stream_.Id().Utf8() :
+                                       source.GetAsURL().GetString().Utf8();
+
+  media_log_->AddEvent(media_log_->CreateLoadEvent(stream_id));
   load_start_time_ = base::TimeTicks::Now();
 
   media_metrics_provider_->Initialize(load_type == kLoadTypeMediaSource,
@@ -628,12 +778,13 @@ void WebMediaPlayerImpl::DoLoad(LoadType load_type,
                                           ? GetMediaURLScheme(loaded_url_)
                                           : mojom::MediaURLScheme::kUnknown);
 
-  // Media source pipelines can start immediately.
-  if (load_type == kLoadTypeMediaSource) {
+  // Media source and webstream pipelines can start immediately.
+  if (load_type == kLoadTypeMediaSource || isWebStream) {
     StartPipeline();
   } else {
     auto url_data =
-        url_index_->GetByUrl(url, static_cast<UrlData::CorsMode>(cors_mode));
+        url_index_->GetByUrl(source.GetAsURL(),
+                                  static_cast<UrlData::CorsMode>(cors_mode));
     // Notify |this| of bytes received by the network.
     url_data->AddBytesReceivedCallback(BindToCurrentLoop(base::BindRepeating(
         &WebMediaPlayerImpl::OnBytesReceived, AsWeakPtr())));
@@ -649,6 +800,146 @@ void WebMediaPlayerImpl::DoLoad(LoadType load_type,
 
 #if defined(OS_ANDROID)  // WMPI_CAST
   cast_impl_.Initialize(url, frame_, delegate_id_);
+#endif
+}
+
+
+void WebMediaPlayerImpl::TrackAdded(const blink::WebMediaStreamTrack& track) {
+  Reload();
+}
+
+void WebMediaPlayerImpl::TrackRemoved(const blink::WebMediaStreamTrack& track) {
+  Reload();
+}
+
+void WebMediaPlayerImpl::ActiveStateChanged(bool is_active) {
+//  DCHECK(thread_checker_.CalledOnValidThread());
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  // The case when the stream becomes active is handled by TrackAdded().
+  if (is_active)
+    return;
+
+  // This makes the media element elegible to be garbage collected. Otherwise,
+  // the element will be considered active and will never be garbage
+  // collected.
+  SetNetworkState(kNetworkStateIdle);
+
+  // Stop the audio renderer to free up resources that are not required for an
+  // inactive stream. This is useful if the media element is not garbage
+  // collected.
+  // Note that the video renderer should not be stopped because the ended video
+  // track is expected to produce a black frame after becoming inactive.
+//  if (audio_renderer_)
+//    audio_renderer_->Stop();
+}
+
+void WebMediaPlayerImpl::Reload() {
+//  DCHECK(thread_checker_.CalledOnValidThread());
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  if (web_stream_.IsNull())
+    return;
+
+  ReloadVideo();
+  ReloadAudio();
+}
+
+void WebMediaPlayerImpl::ReloadVideo() {
+//  DCHECK(thread_checker_.CalledOnValidThread());
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  DCHECK(!web_stream_.IsNull());
+  blink::WebVector<blink::WebMediaStreamTrack> video_tracks =
+      web_stream_.VideoTracks();
+
+  RendererReloadAction renderer_action = RendererReloadAction::KEEP_RENDERER;
+  if (video_tracks.IsEmpty()) {
+    if (video_frame_provider_)
+      renderer_action = RendererReloadAction::REMOVE_RENDERER;
+    current_video_track_id_ = blink::WebString();
+  } else if (video_tracks[0].Id() != current_video_track_id_ &&
+             IsPlayableTrack(video_tracks[0])) {
+    renderer_action = RendererReloadAction::NEW_RENDERER;
+    current_video_track_id_ = video_tracks[0].Id();
+  }
+
+  switch (renderer_action) {
+    case RendererReloadAction::NEW_RENDERER:
+      if (video_frame_provider_)
+        video_frame_provider_->Stop();
+
+      SetNetworkState(kNetworkStateLoading);
+      video_frame_provider_ = renderer_factory_->GetVideoRenderer(
+          web_stream_,
+          media::BindToCurrentLoop(
+              base::Bind(&WebMediaPlayerImpl::OnSourceError, AsWeakPtr())),
+          frame_deliverer_->GetRepaintCallback(), io_task_runner_);
+      DCHECK(video_frame_provider_);
+      video_frame_provider_->Start();
+      break;
+
+    case RendererReloadAction::REMOVE_RENDERER:
+      video_frame_provider_->Stop();
+      video_frame_provider_ = nullptr;
+      break;
+
+    default:
+      return;
+  }
+
+  DCHECK_NE(renderer_action, RendererReloadAction::KEEP_RENDERER);
+  if (!paused_)
+    delegate_->DidPlayerSizeChange(delegate_id_, NaturalSize());
+}
+
+void WebMediaPlayerImpl::ReloadAudio() {
+#if 0
+//  DCHECK(thread_checker_.CalledOnValidThread());
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  DCHECK(!web_stream_.IsNull());
+  RenderFrame* const frame = RenderFrame::FromWebFrame(frame_);
+  if (!frame)
+    return;
+
+  blink::WebVector<blink::WebMediaStreamTrack> audio_tracks =
+      web_stream_.AudioTracks();
+
+  RendererReloadAction renderer_action = RendererReloadAction::KEEP_RENDERER;
+  if (audio_tracks.IsEmpty()) {
+    if (audio_renderer_)
+      renderer_action = RendererReloadAction::REMOVE_RENDERER;
+    current_audio_track_id_ = blink::WebString();
+  } else if (audio_tracks[0].Id() != current_audio_track_id_ &&
+             IsPlayableTrack(audio_tracks[0])) {
+    renderer_action = RendererReloadAction::NEW_RENDERER;
+    current_audio_track_id_ = audio_tracks[0].Id();
+  }
+
+  switch (renderer_action) {
+    case RendererReloadAction::NEW_RENDERER:
+      if (audio_renderer_)
+        audio_renderer_->Stop();
+
+      SetNetworkState(WebMediaPlayer::kNetworkStateLoading);
+      audio_renderer_ = renderer_factory_->GetAudioRenderer(
+                              web_stream_, frame->GetRoutingID(),
+                                initial_audio_output_device_id_);
+
+      // |audio_renderer_| can be null in tests.
+      if (!audio_renderer_)
+        break;
+
+      audio_renderer_->SetVolume(volume_);
+      audio_renderer_->Start();
+      audio_renderer_->Play();
+      break;
+
+    case RendererReloadAction::REMOVE_RENDERER:
+      audio_renderer_->Stop();
+      audio_renderer_ = nullptr;
+      break;
+
+    default:
+      break;
+  }
 #endif
 }
 
@@ -1561,7 +1852,50 @@ void WebMediaPlayerImpl::OnPipelineResumed() {
 
 void WebMediaPlayerImpl::OnDemuxerOpened() {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
-  client_->MediaSourceOpened(new WebMediaSourceImpl(chunk_demuxer_));
+  if (!web_stream_.IsNull()) {
+    FrameDemuxer *fdemuxer = static_cast<FrameDemuxer*>(demuxer_.get());
+          frame_deliverer_.reset(new WebMediaPlayerImpl::FrameDeliverer(
+          AsWeakPtr(),
+          base::BindRepeating(&FrameDemuxer::EnqueueFrame,
+	  base::Unretained(fdemuxer)),
+          media_task_runner_, worker_task_runner_));
+
+    video_frame_provider_ = renderer_factory_->GetVideoRenderer(
+          web_stream_,
+          media::BindToCurrentLoop(
+          base::Bind(&WebMediaPlayerImpl::OnSourceError, AsWeakPtr())),
+          frame_deliverer_->GetRepaintCallback(), io_task_runner_);
+
+//  content::RenderFrame* const frame =
+//                          content::RenderFrame::FromWebFrame(frame_);
+
+//  int routing_id = MSG_ROUTING_NONE;
+//  GURL url = source.IsURL() ? GURL(source.GetAsURL()) : GURL();
+
+//  if (frame) {
+//    Report UMA and RAPPOR metrics.
+//    media::ReportMetrics(load_type, url, *frame_, media_log_.get());
+//    routing_id = frame->GetRoutingID();
+//  }
+
+    if (!video_frame_provider_) {
+      LOG(ERROR) << "video_frame_provider creation failed.";
+      SetNetworkState(WebMediaPlayer::kNetworkStateNetworkError);
+      return;
+    } else {
+      video_frame_provider_->Start();
+
+      // Store the ID of video track being played in |current_video_track_id_|
+      if (!web_stream_.IsNull()) {
+        blink::WebVector<blink::WebMediaStreamTrack> video_tracks =
+	        web_stream_.VideoTracks();
+                DCHECK_GT(video_tracks.size(), 0U);
+        current_video_track_id_ = video_tracks[0].Id();
+      }
+    }
+  } else {
+    client_->MediaSourceOpened(new WebMediaSourceImpl(chunk_demuxer_));
+  }
 }
 
 void WebMediaPlayerImpl::OnMemoryPressure(
@@ -1841,6 +2175,8 @@ void WebMediaPlayerImpl::OnProgress() {
 bool WebMediaPlayerImpl::CanPlayThrough() {
   if (!base::FeatureList::IsEnabled(kSpecCompliantCanPlayThrough))
     return true;
+  if (!web_stream_.IsNull())
+     return true;
   if (chunk_demuxer_)
     return true;
   if (data_source_ && data_source_->assume_fully_buffered())
@@ -2497,6 +2833,10 @@ std::unique_ptr<Renderer> WebMediaPlayerImpl::CreateRenderer() {
 void WebMediaPlayerImpl::StartPipeline() {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
 
+  bool isWebStream = false;
+  if (!web_stream_.IsNull())
+	  isWebStream = true;
+
   Demuxer::EncryptedMediaInitDataCB encrypted_media_init_data_cb =
       BindToCurrentLoop(base::Bind(
           &WebMediaPlayerImpl::OnEncryptedMediaInitData, AsWeakPtr()));
@@ -2532,7 +2872,55 @@ void WebMediaPlayerImpl::StartPipeline() {
   }
 
   // Figure out which demuxer to use.
-  if (load_type_ != kLoadTypeMediaSource) {
+  if(isWebStream) {
+    FrameDemuxer *fdemuxer = new FrameDemuxer(
+                BindToCurrentLoop(
+                base::Bind(&WebMediaPlayerImpl::OnDemuxerOpened, AsWeakPtr())),
+                BindToCurrentLoop(
+                base::Bind(&WebMediaPlayerImpl::OnProgress, AsWeakPtr())),
+                media_log_.get());
+#if 0
+    frame_deliverer_.reset(new WebMediaPlayerImpl::FrameDeliverer(
+                AsWeakPtr(),
+                base::BindRepeating(&FrameDemuxer::EnqueueFrame,
+                base::Unretained(fdemuxer)),
+                media_task_runner_, worker_task_runner_));
+
+    video_frame_provider_ = renderer_factory_->GetVideoRenderer(
+                  web_stream_,
+                  media::BindToCurrentLoop(
+                  base::Bind(&WebMediaPlayerImpl::OnSourceError, AsWeakPtr())),
+    frame_deliverer_->GetRepaintCallback(), io_task_runner_);
+
+//  content::RenderFrame* const frame = content::RenderFrame::FromWebFrame(frame_);
+
+//  int routing_id = MSG_ROUTING_NONE;
+//  GURL url = source.IsURL() ? GURL(source.GetAsURL()) : GURL();
+
+//  if (frame) {
+//    Report UMA and RAPPOR metrics.
+//    media::ReportMetrics(load_type, url, *frame_, media_log_.get());
+//    routing_id = frame->GetRoutingID();
+//  }
+
+    if (!video_frame_provider_) {
+      SetNetworkState(WebMediaPlayer::kNetworkStateNetworkError);
+      return;
+    } else {
+      video_frame_provider_->Start();
+
+      // Store the ID of video track being played in |current_video_track_id_|
+      if (!web_stream_.IsNull()) {
+        blink::WebVector<blink::WebMediaStreamTrack> video_tracks =
+                                                    web_stream_.VideoTracks();
+        DCHECK_GT(video_tracks.size(), 0U);
+        current_video_track_id_ = video_tracks[0].Id();
+    }
+  }
+#endif
+    demuxer_.reset(fdemuxer);
+
+  } else if (load_type_ != kLoadTypeMediaSource) {
     DCHECK(!chunk_demuxer_);
     DCHECK(data_source_);
 
@@ -2594,6 +2982,18 @@ void WebMediaPlayerImpl::StartPipeline() {
   seeking_ = true;
   pipeline_controller_.Start(start_type, demuxer_.get(), this, is_streaming,
                              is_static);
+}
+
+void WebMediaPlayerImpl::RepaintInternal() {
+  DVLOG(1) << __func__;
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  get_client()->Repaint();
+}
+
+void WebMediaPlayerImpl::OnSourceError() {
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  SetNetworkState(WebMediaPlayer::kNetworkStateFormatError);
+  RepaintInternal();
 }
 
 void WebMediaPlayerImpl::SetNetworkState(WebMediaPlayer::NetworkState state) {

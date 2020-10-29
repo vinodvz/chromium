@@ -1026,6 +1026,7 @@ scoped_refptr<VideoFrame> VideoFrame::WrapExternalStorage(
     frame->data_[i] = data + layout.planes()[i].offset;
   }
 
+  frame->data_size_ = data_size;
   if (storage_type == STORAGE_SHMEM) {
     if (read_only_region || unsafe_region) {
       DCHECK(!handle.IsValid());

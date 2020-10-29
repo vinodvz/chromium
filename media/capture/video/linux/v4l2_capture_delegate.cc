@@ -58,7 +58,7 @@ constexpr int kMjpegHeight = 480;
 // Typical framerate, in fps
 constexpr int kTypicalFramerate = 30;
 
-//#define PREF_H264 1
+#define PREF_H264 1
 
 // V4L2 color formats supported by V4L2CaptureDelegate derived classes.
 // This list is ordered by precedence of use -- but see caveats for MJPEG.

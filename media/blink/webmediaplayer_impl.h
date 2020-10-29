@@ -44,6 +44,7 @@
 #include "third_party/blink/public/platform/web_audio_source_provider.h"
 #include "third_party/blink/public/platform/web_content_decryption_module_result.h"
 #include "third_party/blink/public/platform/web_media_player.h"
+#include "third_party/blink/public/platform/web_media_stream.h"
 #include "third_party/blink/public/platform/web_surface_layer_bridge.h"
 #include "url/gurl.h"
 
@@ -65,6 +66,12 @@ class TaskRunner;
 
 namespace cc {
 class VideoLayer;
+}
+
+namespace content {
+class MediaStreamAudioRenderer;
+class MediaStreamRendererFactory;
+class MediaStreamVideoRenderer;
 }
 
 namespace gpu {
@@ -90,6 +97,7 @@ class WebMediaPlayerDelegate;
 // Encrypted Media.
 class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
     : public blink::WebMediaPlayer,
+      public blink::WebMediaStreamObserver,
       public WebMediaPlayerDelegate::Observer,
       public Pipeline::Client,
       public MediaObserverClient,
@@ -103,6 +111,9 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
       blink::WebMediaPlayerClient* client,
       blink::WebMediaPlayerEncryptedMediaClient* encrypted_client,
       WebMediaPlayerDelegate* delegate,
+	  std::unique_ptr<content::MediaStreamRendererFactory> factory,
+	  scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
+	  const blink::WebString& sink_id,
       std::unique_ptr<RendererFactorySelector> renderer_factory_selector,
       UrlIndex* url_index,
       std::unique_ptr<VideoFrameCompositor> compositor,
@@ -298,6 +309,11 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // TODO(hubbe): WMPI_CAST make private.
   void OnPipelineSeeked(bool time_updated);
 
+  // blink::WebMediaStreamObserver implementation
+  void TrackAdded(const blink::WebMediaStreamTrack& track) override;
+  void TrackRemoved(const blink::WebMediaStreamTrack& track) override;
+  void ActiveStateChanged(bool is_active) override;
+
   // Distinct states that |delegate_| can be in. (Public for testing.)
   enum class DelegateState {
     GONE,
@@ -369,7 +385,8 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
 
   // Called after |defer_load_cb_| has decided to allow the load. If
   // |defer_load_cb_| is null this is called immediately.
-  void DoLoad(LoadType load_type, const blink::WebURL& url, CorsMode cors_mode);
+  void DoLoad(LoadType load_type, const blink::WebMediaPlayerSource& source,
+                                                           CorsMode cors_mode);
 
   // Called after asynchronous initialization of a data source completed.
   void DataSourceInitialized(bool success);
@@ -397,10 +414,24 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // then seek to resume playback at the current position.
   void ScheduleRestart();
 
+  // Need repaint due to state change.
+  void RepaintInternal();
+
+  // The callback for source to report error.
+  void OnSourceError();
+
   // Helpers that set the network/ready state and notifies the client if
   // they've changed.
   void SetNetworkState(blink::WebMediaPlayer::NetworkState state);
   void SetReadyState(blink::WebMediaPlayer::ReadyState state);
+
+  // Getter method to |client_|.
+  blink::WebMediaPlayerClient* get_client() { return client_; }
+
+  // To be run when tracks are added or removed.
+  void Reload();
+  void ReloadVideo();
+  void ReloadAudio();
 
   // Returns the current video frame from |compositor_|, and asks the compositor
   // to update its frame if it is stale.
@@ -640,6 +671,10 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   const scoped_refptr<base::TaskRunner> worker_task_runner_;
   std::unique_ptr<MediaLog> media_log_;
 
+  std::unique_ptr<content::MediaStreamRendererFactory> renderer_factory_;
+
+  const scoped_refptr<base::SingleThreadTaskRunner> io_task_runner_;
+
   // |pipeline_controller_| owns an instance of Pipeline.
   PipelineController pipeline_controller_;
 
@@ -717,6 +752,13 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // to outlive |this|; thus it is safe to store |delegate_| as a raw pointer.
   media::WebMediaPlayerDelegate* const delegate_;
   int delegate_id_ = 0;
+
+  // Inner class used for transfering frames on compositor thread to
+  // |compositor_|.
+  class FrameDeliverer;
+  std::unique_ptr<FrameDeliverer> frame_deliverer_;
+
+  scoped_refptr<content::MediaStreamVideoRenderer> video_frame_provider_;
 
   WebMediaPlayerParams::DeferLoadCB defer_load_cb_;
 
@@ -816,6 +858,13 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // Used for HLS playback and in certain fallback paths (e.g. on older devices
   // that can't support the unified media pipeline).
   GURL loaded_url_;
+
+  blink::WebMediaStream web_stream_;
+  // IDs of the tracks currently played.
+  blink::WebString current_video_track_id_;
+  blink::WebString current_audio_track_id_;
+
+  scoped_refptr<content::MediaStreamAudioRenderer> audio_renderer_;  // Weak
 
   // NOTE: |using_media_player_renderer_| is set based on the usage of a
   // MediaResource::Type::URL in StartPipeline(). This currently works because
@@ -958,6 +1007,8 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   base::CancelableClosure update_background_status_cb_;
 
   mojom::MediaMetricsProviderPtr media_metrics_provider_;
+
+  const std::string initial_audio_output_device_id_;
 
   base::Optional<ReadyState> stale_state_override_for_testing_;
 

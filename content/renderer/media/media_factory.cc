@@ -267,13 +267,16 @@ blink::WebMediaPlayer* MediaFactory::CreateMediaPlayer(
       render_frame_->GetWebFrame()->GetSecurityOrigin();
   blink::WebMediaStream web_stream =
       GetWebMediaStreamFromWebMediaPlayerSource(source);
+
+#if 0 //Webstream going to be played in the CMABackend
   if (!web_stream.IsNull())
     return CreateWebMediaPlayerForMediaStream(
         client, sink_id, security_origin, web_frame, layer_tree_view, settings);
+#endif
 
   // If |source| was not a MediaStream, it must be a URL.
   // TODO(guidou): Fix this when support for other srcObject types is added.
-  DCHECK(source.IsURL());
+  DCHECK(!web_stream.IsNull() || source.IsURL());
   blink::WebURL url = source.GetAsURL();
 
   RenderThreadImpl* render_thread = RenderThreadImpl::current();
@@ -377,6 +380,8 @@ blink::WebMediaPlayer* MediaFactory::CreateMediaPlayer(
 
   media::WebMediaPlayerImpl* media_player = new media::WebMediaPlayerImpl(
       web_frame, client, encrypted_client, GetWebMediaPlayerDelegate(),
+	  CreateMediaStreamRendererFactory(), render_thread->GetIOTaskRunner(),
+	  sink_id,
       std::move(factory_selector), url_index_.get(), std::move(vfc),
       std::move(params));
 
