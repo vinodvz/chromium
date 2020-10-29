@@ -28,6 +28,7 @@ namespace {
 
 bool IsFormatSupported(media::VideoPixelFormat pixel_format) {
   return (pixel_format == media::PIXEL_FORMAT_I420 ||
+          pixel_format == media::PIXEL_FORMAT_H264 ||
           pixel_format == media::PIXEL_FORMAT_Y16);
 }
 
@@ -144,6 +145,9 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
   DFAKE_SCOPED_RECURSIVE_LOCK(call_from_producer_);
   TRACE_EVENT0("media", "VideoCaptureDeviceClient::OnIncomingCapturedData");
 
+  VideoPixelFormat pix_format = (format.pixel_format == PIXEL_FORMAT_H264)?
+                                       PIXEL_FORMAT_H264:PIXEL_FORMAT_I420;
+
   if (last_captured_pixel_format_ != format.pixel_format) {
     OnLog("Pixel format: " + VideoPixelFormatToString(format.pixel_format));
     last_captured_pixel_format_ = format.pixel_format;
@@ -185,7 +189,7 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
   const gfx::Size dimensions(destination_width, destination_height);
   Buffer buffer;
   auto reservation_result_code = ReserveOutputBuffer(
-      dimensions, PIXEL_FORMAT_I420, frame_feedback_id, &buffer);
+      dimensions, pix_format, frame_feedback_id, &buffer);
   if (reservation_result_code != ReserveResult::kSucceeded) {
     receiver_->OnFrameDropped(
         ConvertReservationFailureToFrameDropReason(reservation_result_code));
@@ -267,14 +271,17 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
     case PIXEL_FORMAT_MJPEG:
       origin_colorspace = libyuv::FOURCC_MJPG;
       break;
+    case PIXEL_FORMAT_H264:
+      origin_colorspace = libyuv::FOURCC_H264;
+      break;
     default:
       NOTREACHED();
   }
 
   // The input |length| can be greater than the required buffer size because of
   // paddings and/or alignments, but it cannot be smaller.
-  DCHECK_GE(static_cast<size_t>(length), format.ImageAllocationSize());
-
+//  DCHECK_GE(static_cast<size_t>(length), format.ImageAllocationSize());
+///VINOD: Check what is happening here for MJPEG
   if (external_jpeg_decoder_) {
     const VideoCaptureJpegDecoder::STATUS status =
         external_jpeg_decoder_->GetStatus();
@@ -291,7 +298,9 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
     }
   }
 
-  if (libyuv::ConvertToI420(
+  if(format.pixel_format == PIXEL_FORMAT_H264) {
+    memcpy(y_plane_data, data, length);
+  } else if (libyuv::ConvertToI420(
           data, length, y_plane_data, yplane_stride, u_plane_data,
           uv_plane_stride, v_plane_data, uv_plane_stride, crop_x, crop_y,
           format.frame_size.width(),
@@ -305,7 +314,8 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
   }
 
   const VideoCaptureFormat output_format =
-      VideoCaptureFormat(dimensions, format.frame_rate, PIXEL_FORMAT_I420);
+      VideoCaptureFormat(dimensions, format.frame_rate,
+      pix_format);
   OnIncomingCapturedBuffer(std::move(buffer), output_format, reference_time,
                            timestamp);
 }

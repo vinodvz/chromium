@@ -40,6 +40,7 @@ enum VideoCapturePixelFormat {
   Y16,
   ABGR,
   XBGR,
+  H264,
 };
 
 enum ResolutionChangePolicy {

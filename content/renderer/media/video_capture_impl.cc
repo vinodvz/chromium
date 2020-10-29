@@ -381,6 +381,12 @@ void VideoCaptureImpl::OnBufferReady(int32_t buffer_id,
             info->timestamp);
         frame->AddSharedMemoryHandle(buffer_context->shared_memory()->handle());
       } else {
+FILE *fp=NULL; //fopen("/tmp/conj_video.raw","ab");
+if(fp) {
+fwrite(buffer_context->shared_memory()->memory(), buffer_context->shared_memory_size(), 1, fp);
+fflush(fp);
+fclose(fp);
+}
         frame = media::VideoFrame::WrapExternalSharedMemory(
             info->pixel_format, info->coded_size, info->visible_rect,
             info->visible_rect.size(),
@@ -418,7 +424,6 @@ void VideoCaptureImpl::OnBufferReady(int32_t buffer_id,
     GetVideoCaptureHost()->ReleaseBuffer(device_id_, buffer_id, -1.0);
     return;
   }
-
   frame->AddDestructionObserver(base::BindOnce(
       &VideoCaptureImpl::DidFinishConsumingFrame, frame->metadata(),
       media::BindToCurrentLoop(base::BindOnce(
@@ -429,6 +434,8 @@ void VideoCaptureImpl::OnBufferReady(int32_t buffer_id,
 
   // TODO(qiangchen): Dive into the full code path to let frame metadata hold
   // reference time rather than using an extra parameter.
+  //VINOD return from here if H264 is not handled above this layer.
+  //return;
   for (const auto& client : clients_)
     client.second.deliver_frame_cb.Run(frame, reference_time);
 }

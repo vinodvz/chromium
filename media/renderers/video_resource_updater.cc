@@ -114,6 +114,7 @@ VideoFrameResourceType ExternalResourceTypeForHardwarePlanes(
     case PIXEL_FORMAT_Y16:
     case PIXEL_FORMAT_ABGR:
     case PIXEL_FORMAT_XBGR:
+    case PIXEL_FORMAT_H264:
     case PIXEL_FORMAT_UNKNOWN:
       break;
   }
@@ -774,6 +775,7 @@ VideoFrameExternalResources VideoResourceUpdater::CreateForSoftwarePlanes(
 
   // Only YUV and Y16 software video frames are supported.
   DCHECK(IsYuvPlanar(input_frame_format) ||
+         input_frame_format == PIXEL_FORMAT_H264 ||
          input_frame_format == PIXEL_FORMAT_Y16);
 
   viz::ResourceFormat output_resource_format;
