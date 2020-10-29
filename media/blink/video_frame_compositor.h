@@ -153,6 +153,10 @@ class MEDIA_BLINK_EXPORT VideoFrameCompositor : public VideoRendererSink,
     submitter_ = std::move(submitter);
   }
 
+  // Used by the |mojo_renderer_factory| to retrieve the player ID
+  // when CreateRenderer() is called.
+  std::string GetPlayerId();
+
  private:
   // TracingCategory name for |auto_open_close_|.
   static constexpr const char kTracingCategory[] = "media,rail";
@@ -228,6 +232,9 @@ class MEDIA_BLINK_EXPORT VideoFrameCompositor : public VideoRendererSink,
   std::unique_ptr<base::trace_event::AutoOpenCloseEvent<kTracingCategory>>
       auto_open_close_;
   std::unique_ptr<blink::WebVideoFrameSubmitter> submitter_;
+
+  //Unique playerId being used by renderer and browser processes
+  const uint32_t vizio_player_id_;
 
   base::WeakPtrFactory<VideoFrameCompositor> weak_ptr_factory_;
 

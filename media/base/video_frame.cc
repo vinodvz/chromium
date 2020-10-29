@@ -294,7 +294,6 @@ scoped_refptr<VideoFrame> VideoFrame::WrapNativeTextures(
   memcpy(&frame->mailbox_holders_, mailbox_holders,
          sizeof(frame->mailbox_holders_));
   frame->mailbox_holders_release_cb_ = std::move(mailbox_holder_release_cb);
-
   // Wrapping native textures should... have textures. https://crbug.com/864145.
   DCHECK(frame->HasTextures());
 
@@ -423,6 +422,7 @@ scoped_refptr<VideoFrame> VideoFrame::WrapExternalYuvData(
   frame->data_[kYPlane] = y_data;
   frame->data_[kUPlane] = u_data;
   frame->data_[kVPlane] = v_data;
+
   return frame;
 }
 
@@ -510,7 +510,6 @@ scoped_refptr<VideoFrame> VideoFrame::WrapExternalDmabufs(
   frame->mailbox_holders_release_cb_ = ReleaseMailboxCB();
   frame->dmabuf_fds_ = std::move(dmabuf_fds);
   DCHECK(frame->HasDmaBufs());
-
   return frame;
 }
 #endif
@@ -630,7 +629,6 @@ scoped_refptr<VideoFrame> VideoFrame::WrapVideoFrame(
       wrapping_frame->AddSharedMemoryHandle(frame->shared_memory_handle_);
     }
   }
-
   return wrapping_frame;
 }
 
@@ -1061,7 +1059,8 @@ VideoFrame::VideoFrame(const VideoFrameLayout& layout,
       natural_size_(natural_size),
       shared_memory_offset_(0),
       timestamp_(timestamp),
-      unique_id_(g_unique_id_generator.GetNext()) {
+      unique_id_(g_unique_id_generator.GetNext()),
+      vizio_player_id_(0) {
   DCHECK(IsValidConfig(format(), storage_type, coded_size(), visible_rect_,
                        natural_size_));
   DCHECK(visible_rect_ == visible_rect)
@@ -1325,6 +1324,14 @@ std::vector<size_t> VideoFrame::CalculatePlaneSize() const {
     plane_size.back() += std::abs(stride(kUPlane)) + kFrameSizePadding;
   }
   return plane_size;
+}
+
+void VideoFrame::SetVizioPlayerId(uint32_t id) {
+  vizio_player_id_ = id;
+}
+
+uint32_t VideoFrame::GetVizioPlayerId() const {
+  return vizio_player_id_;
 }
 
 }  // namespace media

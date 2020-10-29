@@ -34,10 +34,12 @@ namespace media {
 
 namespace {
 
+#if 0
 #if BUILDFLAG(IS_CAST_AUDIO_ONLY) || BUILDFLAG(ENABLE_ASSISTANT)
 constexpr int kAudioDecoderLimit = std::numeric_limits<int>::max();
 #else
 constexpr int kAudioDecoderLimit = 1;
+#endif
 #endif
 
 constexpr base::TimeDelta kPowerSaveWaitTime = base::TimeDelta::FromSeconds(5);
@@ -86,10 +88,12 @@ std::unique_ptr<CmaBackend> MediaPipelineBackendManager::CreateCmaBackend(
     const media::MediaPipelineDeviceParams& params) {
   DCHECK(media_task_runner_->BelongsToCurrentThread());
 
+#if 0
   if (active_backend_wrapper_) {
     active_backend_wrapper_->Revoke();
     active_backend_wrapper_ = nullptr;
   }
+#endif
 
   std::unique_ptr<MediaPipelineBackendWrapper> backend_wrapper =
       std::make_unique<MediaPipelineBackendWrapper>(params, this);
@@ -109,7 +113,8 @@ void MediaPipelineBackendManager::BackendDestroyed(
 bool MediaPipelineBackendManager::IncrementDecoderCount(DecoderType type) {
   DCHECK(media_task_runner_->BelongsToCurrentThread());
   DCHECK(type < NUM_DECODER_TYPES);
-  const int limit = (type == AUDIO_DECODER) ? kAudioDecoderLimit : 1;
+//  const int limit = (type == AUDIO_DECODER) ? kAudioDecoderLimit : 1;
+  const int limit = 10;
   if (decoder_count_[type] >= limit) {
     LOG(WARNING) << "Decoder limit reached for type " << type;
     return false;

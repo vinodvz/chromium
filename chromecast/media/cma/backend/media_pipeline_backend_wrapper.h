@@ -39,6 +39,10 @@ class MediaPipelineBackendWrapper : public CmaBackend {
   // CmaBackend implementation:
   AudioDecoder* CreateAudioDecoder() override;
   VideoDecoder* CreateVideoDecoder() override;
+
+  // VIZIO: Returns video window buffer pointer attached to the pipeline.
+  VideoWindow* GetVideoWindow() override;
+
   bool Initialize() override;
   bool Start(int64_t start_pts) override;
   void Stop() override;

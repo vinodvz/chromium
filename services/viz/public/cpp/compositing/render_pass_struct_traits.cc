@@ -45,6 +45,9 @@ bool StructTraits<viz::mojom::RenderPassDataView,
     viz::mojom::DrawQuadStateDataView quad_state_data_view;
     quad_data_view.GetDrawQuadStateDataView(&quad_state_data_view);
 
+if(quad_state_data_view.tag() == viz::mojom::internal::DrawQuadState_Data::DrawQuadState_Tag::YUV_VIDEO_QUAD_STATE) {
+  LOG(ERROR) << "Going to create YUVVideoDrawQuad";
+}
     viz::DrawQuad* quad =
         AllocateAndConstruct(quad_state_data_view.tag(), &(*out)->quad_list);
     if (!quad)

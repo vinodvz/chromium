@@ -245,7 +245,8 @@ const DefaultCommandLineSwitch kDefaultSwitches[] = {
 #if defined(ARCH_CPU_X86_FAMILY)
     // This is needed for now to enable the x11 Ozone platform to work with
     // current Linux/NVidia OpenGL drivers.
-    {switches::kIgnoreGpuBlacklist, ""},
+//    {switches::kIgnoreGpuBlacklist, ""},
+    {switches::kEnableHardwareOverlays, "cast"},
 #elif defined(ARCH_CPU_ARM_FAMILY)
 #if !BUILDFLAG(IS_CAST_AUDIO_ONLY)
     {switches::kEnableHardwareOverlays, "cast"},
@@ -500,9 +501,11 @@ void CastBrowserMainParts::PreMainMessageLoopRun() {
   video_plane_controller_.reset(new media::VideoPlaneController(
       Size(display_size.width(), display_size.height()),
       cast_content_browser_client_->GetMediaTaskRunner()));
+#if 0 //Vizio will use VideoWindowController
   viz::OverlayStrategyUnderlayCast::SetOverlayCompositedCallback(
       base::BindRepeating(&media::VideoPlaneController::SetGeometry,
                           base::Unretained(video_plane_controller_.get())));
+#endif
 #endif
 
 #if defined(USE_AURA)

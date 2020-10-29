@@ -241,9 +241,9 @@ void AlsaPcmInputStream::ReadAudio() {
   next_read_time_ += buffer_duration_;
   base::TimeDelta delay = next_read_time_ - base::TimeTicks::Now();
   if (delay < base::TimeDelta()) {
-    DVLOG(1) << "Audio read callback behind schedule by "
-             << (buffer_duration_ - delay).InMicroseconds()
-             << " (us).";
+//    DVLOG(1) << "Audio read callback behind schedule by "
+//             << (buffer_duration_ - delay).InMicroseconds()
+//             << " (us).";
     // Read callback is behind schedule. Assuming there is data pending in
     // the soundcard, invoke the read callback immediate in order to catch up.
     read_callback_behind_schedule_ = true;

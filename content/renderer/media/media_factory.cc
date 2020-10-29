@@ -267,6 +267,13 @@ blink::WebMediaPlayer* MediaFactory::CreateMediaPlayer(
       render_frame_->GetWebFrame()->GetSecurityOrigin();
   blink::WebMediaStream web_stream =
       GetWebMediaStreamFromWebMediaPlayerSource(source);
+#if 1
+  if (!web_stream.IsNull()) {
+LOG(ERROR) << "@@@@@@@@@@@@Creating WebMediaPlayerForMediaStream";
+    return CreateWebMediaPlayerForMediaStream(
+        client, sink_id, security_origin, web_frame, layer_tree_view, settings);
+}
+#endif
 
 #if 0 //Webstream going to be played in the CMABackend
   if (!web_stream.IsNull())
@@ -377,6 +384,13 @@ blink::WebMediaPlayer* MediaFactory::CreateMediaPlayer(
   std::unique_ptr<media::VideoFrameCompositor> vfc =
       std::make_unique<media::VideoFrameCompositor>(
           params->video_frame_compositor_task_runner(), std::move(submitter));
+
+#if 1
+  static_cast<media::MojoRendererFactory*>(factory_selector->GetCurrentFactory())
+	->SetGetTypeSpecificIdCB(base::BindRepeating(
+      		&media::VideoFrameCompositor::GetPlayerId,
+      		base::Unretained(vfc.get())));
+#endif
 
   media::WebMediaPlayerImpl* media_player = new media::WebMediaPlayerImpl(
       web_frame, client, encrypted_client, GetWebMediaPlayerDelegate(),

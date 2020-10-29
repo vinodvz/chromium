@@ -16,6 +16,8 @@
 #include "media/base/renderer.h"
 #include "media/mojo/interfaces/application_session_id_manager.mojom.h"
 #include "ui/gfx/geometry/size.h"
+#include "chromecast/browser/cast_browser_process.h"
+#include "chromecast/service/cast_service.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -31,7 +33,16 @@ class InterfaceProvider;
 namespace chromecast {
 class TaskRunnerImpl;
 
+namespace shell
+{
+class CastBrowserProcess;
+}
+class CastService;
+
 namespace media {
+class VideoWindow;
+class VideoWindowController;
+class VideoPlaneController;
 class BalancedMediaTaskRunnerFactory;
 class CastCdmContext;
 class MediaPipelineImpl;
@@ -90,12 +101,14 @@ class CastRenderer : public ::media::Renderer,
 
   void OnVideoInitializationFinished(const ::media::PipelineStatusCB& init_cb,
                                      ::media::PipelineStatus status);
-
+  void CreateVideoWindowController(CmaBackend *backend);
   CmaBackendFactory* const backend_factory_;
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   const std::string audio_device_id_;
+  const std::string vizio_player_id_;
   VideoModeSwitcher* video_mode_switcher_;
   VideoResolutionPolicy* video_resolution_policy_;
+  std::unique_ptr<media::VideoWindowController> video_window_controller_;
   MediaResourceTracker* media_resource_tracker_;
   service_manager::Connector* connector_;
   service_manager::mojom::InterfaceProvider* host_interfaces_;

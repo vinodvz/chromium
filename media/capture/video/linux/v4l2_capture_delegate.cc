@@ -251,7 +251,9 @@ V4L2CaptureDelegate::V4L2CaptureDelegate(
       is_capturing_(false),
       timeout_count_(0),
       rotation_(0),
-      weak_factory_(this) {}
+      weak_factory_(this) {
+LOG(ERROR) << "Create V4L2CaptureDelegate";
+      }
 
 void V4L2CaptureDelegate::AllocateAndStart(
     int width,

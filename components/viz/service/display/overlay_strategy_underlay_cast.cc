@@ -4,17 +4,25 @@
 
 #include "components/viz/service/display/overlay_strategy_underlay_cast.h"
 
+#include <unordered_map>
+#include <sstream>
+#include <iomanip>
 #include "base/containers/adapters.h"
 #include "base/lazy_instance.h"
 #include "components/viz/common/quads/draw_quad.h"
 #include "components/viz/common/quads/solid_color_draw_quad.h"
 #include "components/viz/common/quads/texture_draw_quad.h"
+#include "components/viz/common/quads/yuv_video_draw_quad.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
 namespace viz {
 namespace {
 
-base::LazyInstance<OverlayStrategyUnderlayCast::OverlayCompositedCallback>::
+using CBMap =
+      std::unordered_map<std::string /*video tagId*/,
+      OverlayStrategyUnderlayCast::OverlayCompositedCallback>;
+
+base::LazyInstance<CBMap>::
     DestructorAtExit g_overlay_composited_callback = LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
@@ -57,6 +65,7 @@ bool OverlayStrategyUnderlayCast::Attempt(
           OverlayCandidate::FromDrawQuad(resource_provider, output_color_matrix,
                                          quad, &candidate) &&
           OverlayCandidate::RequiresOverlay(quad);
+is_underlay = true;
       found_underlay = is_underlay;
     }
 
@@ -89,20 +98,24 @@ bool OverlayStrategyUnderlayCast::Attempt(
 
     for (auto it = quad_list.begin(); it != quad_list.end(); ++it) {
       OverlayCandidate candidate;
-      if (!OverlayCandidate::FromDrawQuad(
+      if (DrawQuad::YUV_VIDEO_CONTENT != (*it)->material
+                                             && !OverlayCandidate::FromDrawQuad(
               resource_provider, output_color_matrix, *it, &candidate)) {
         continue;
       }
 
+      std::stringstream ss;
+      ss << std::setw(9) << std::setfill('0') << ((YUVVideoDrawQuad*)*it)
+                                                              ->vizio_player_id;
+      LOG(INFO) << " HEY Received vizio_player_id="<<ss.str();
+
       render_pass->quad_list.ReplaceExistingQuadWithOpaqueTransparentSolidColor(
           it);
 
-      if (!g_overlay_composited_callback.Get().is_null()) {
-        g_overlay_composited_callback.Get().Run(candidate.display_rect,
+      if (!g_overlay_composited_callback.Get()[ss.str()].is_null()) {
+        g_overlay_composited_callback.Get()[ss.str()].Run(gfx::RectF(1998,1098),
                                                 candidate.transform);
       }
-
-      break;
     }
   }
 
@@ -119,8 +132,27 @@ OverlayProcessor::StrategyType OverlayStrategyUnderlayCast::GetUMAEnum() const {
 
 // static
 void OverlayStrategyUnderlayCast::SetOverlayCompositedCallback(
-    const OverlayCompositedCallback& cb) {
-  g_overlay_composited_callback.Get() = cb;
+                                                        const std::string &key,
+  const OverlayCompositedCallback& cb) {
+  auto iter = g_overlay_composited_callback.Get().find(key);
+
+  if(iter == g_overlay_composited_callback.Get().end()) {
+    //Insert
+    g_overlay_composited_callback.Get().insert(std::make_pair(key, cb));
+  } else {
+    //Update
+    g_overlay_composited_callback.Get()[key] = cb;
+  }
+}
+
+//static
+void OverlayStrategyUnderlayCast::RemoveOverlayCompositedCallback(
+                                                       const std::string &key) {
+  auto iter = g_overlay_composited_callback.Get().find(key);
+
+  if(iter != g_overlay_composited_callback.Get().end()) {
+    g_overlay_composited_callback.Get().erase(key);
+  }
 }
 
 }  // namespace viz

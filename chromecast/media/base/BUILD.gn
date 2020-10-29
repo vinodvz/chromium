@@ -98,6 +98,8 @@ cast_source_set("media_codec_support") {
 
 cast_source_set("video_plane_controller") {
   sources = [
+    "video_window_controller.cc",
+    "video_window_controller.h",
     "video_plane_controller.cc",
     "video_plane_controller.h",
   ]

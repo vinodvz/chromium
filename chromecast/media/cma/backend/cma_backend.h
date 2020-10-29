@@ -83,6 +83,8 @@ class CmaBackend {
   // for documentation.
   virtual AudioDecoder* CreateAudioDecoder() = 0;
   virtual VideoDecoder* CreateVideoDecoder() = 0;
+  // VIZIO: Returns video window buffer pointer attached to the pipeline.
+  virtual VideoWindow* GetVideoWindow() = 0;
   virtual bool Initialize() = 0;
   virtual bool Start(int64_t start_pts) = 0;
   virtual void Stop() = 0;

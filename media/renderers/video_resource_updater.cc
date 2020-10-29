@@ -371,10 +371,10 @@ VideoResourceUpdater::~VideoResourceUpdater() {
 
 void VideoResourceUpdater::ObtainFrameResources(
     scoped_refptr<VideoFrame> video_frame) {
+LOG(ERROR) << " ObtainFrameResources. ";
   VideoFrameExternalResources external_resources =
       CreateExternalResourcesFromVideoFrame(video_frame);
   frame_resource_type_ = external_resources.type;
-
   if (external_resources.type == VideoFrameResourceType::YUV) {
     frame_resource_offset_ = external_resources.offset;
     frame_resource_multiplier_ = external_resources.multiplier;
@@ -480,6 +480,9 @@ void VideoResourceUpdater::AppendQuads(viz::RenderPass* render_pass,
           frame_resources_.size() > 3 ? frame_resources_[3].id : 0,
           frame->ColorSpace(), frame_resource_offset_,
           frame_resource_multiplier_, frame_bits_per_channel_);
+
+      yuv_video_quad->vizio_player_id = frame->GetVizioPlayerId();
+
       if (frame->metadata()->IsTrue(VideoFrameMetadata::PROTECTED_VIDEO)) {
         if (frame->metadata()->IsTrue(VideoFrameMetadata::HW_PROTECTED)) {
           yuv_video_quad->protected_video_type =

@@ -103,6 +103,7 @@ struct YUVVideoQuadState {
   float resource_offset;
   float resource_multiplier;
   uint32 bits_per_channel;
+  uint32 vizio_player_id;
   gfx.mojom.ColorSpace video_color_space;
   ProtectedVideoState protected_video_type;
 };

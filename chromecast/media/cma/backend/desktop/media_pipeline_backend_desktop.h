@@ -16,6 +16,7 @@ namespace chromecast {
 namespace media {
 class AudioDecoderDesktop;
 class VideoDecoderDesktop;
+class VideoWindowDesktop;
 
 // Factory that instantiates desktop (stub) media pipeline device elements.
 class MediaPipelineBackendDesktop : public MediaPipelineBackend {
@@ -29,10 +30,15 @@ class MediaPipelineBackendDesktop : public MediaPipelineBackend {
   const VideoDecoderDesktop* video_decoder() const {
     return video_decoder_.get();
   }
+  const VideoWindowDesktop* video_window() const {
+    return video_window_.get();
+  }
 
   // MediaPipelineBackend implementation:
   AudioDecoder* CreateAudioDecoder() override;
   VideoDecoder* CreateVideoDecoder() override;
+  VideoWindow* GetVideoWindow() override;
+
   bool Initialize() override;
   bool Start(int64_t start_pts) override;
   void Stop() override;
@@ -52,6 +58,7 @@ class MediaPipelineBackendDesktop : public MediaPipelineBackend {
   float rate_;
   std::unique_ptr<AudioDecoderDesktop> audio_decoder_;
   std::unique_ptr<VideoDecoderDesktop> video_decoder_;
+  std::unique_ptr<VideoWindowDesktop>  video_window_;
 
   DISALLOW_COPY_AND_ASSIGN(MediaPipelineBackendDesktop);
 };

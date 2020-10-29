@@ -505,6 +505,9 @@ class MEDIA_EXPORT VideoFrame : public base::RefCountedThreadSafe<VideoFrame> {
   // Returns the number of bits per channel.
   size_t BitDepth() const;
 
+  void SetVizioPlayerId(uint32_t id);
+  uint32_t GetVizioPlayerId() const;
+
  protected:
   friend class base::RefCountedThreadSafe<VideoFrame>;
 
@@ -656,6 +659,9 @@ class MEDIA_EXPORT VideoFrame : public base::RefCountedThreadSafe<VideoFrame> {
   const int unique_id_;
 
   gfx::ColorSpace color_space_;
+
+  //PlayerId of this frame
+  uint32_t vizio_player_id_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(VideoFrame);
 };

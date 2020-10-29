@@ -9,6 +9,7 @@
 #include "base/logging.h"
 #include "build/build_config.h"
 #include "chromecast/browser/cast_browser_context.h"
+#include "chromecast/browser/cast_content_browser_client.h"
 #include "chromecast/browser/devtools/remote_debugging_server.h"
 #include "chromecast/browser/metrics/cast_metrics_service_client.h"
 #include "chromecast/browser/tts/tts_controller.h"
@@ -138,6 +139,11 @@ void CastBrowserProcess::SetWebViewFactory(
     CastWebViewFactory* web_view_factory) {
   DCHECK(!web_view_factory_);
   web_view_factory_ = web_view_factory;
+}
+
+scoped_refptr<base::SingleThreadTaskRunner>
+          CastBrowserProcess::media_task_runner_of_browser_client() {
+  return cast_content_browser_client_->GetMediaTaskRunner();
 }
 
 }  // namespace shell

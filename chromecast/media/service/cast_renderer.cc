@@ -16,6 +16,8 @@
 #include "chromecast/media/base/audio_device_ids.h"
 #include "chromecast/media/base/video_mode_switcher.h"
 #include "chromecast/media/base/video_resolution_policy.h"
+#include "chromecast/media/base/video_plane_controller.h"
+#include "chromecast/media/base/video_window_controller.h"
 #include "chromecast/media/cdm/cast_cdm_context.h"
 #include "chromecast/media/cma/base/balanced_media_task_runner_factory.h"
 #include "chromecast/media/cma/base/demuxer_stream_adapter.h"
@@ -33,6 +35,23 @@
 #include "services/service_manager/public/cpp/connect.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/service_manager/public/mojom/interface_provider.mojom.h"
+#include "chromecast/browser/cast_browser_process.h"
+//#include "chromecast/browser/cast_content_browser_client.h"
+
+#if defined(USE_AURA)
+#include "components/viz/service/display/overlay_strategy_underlay_cast.h"  // nogncheck
+// gn check ignored on OverlayManagerCast as it's not a public ozone
+// header, but is exported to allow injecting the overlay-composited
+// callback.
+#include "chromecast/browser/accessibility/accessibility_manager.h"
+#include "chromecast/browser/cast_display_configurator.h"
+#include "chromecast/graphics/cast_screen.h"
+#include "chromecast/graphics/cast_window_manager_aura.h"
+#include "components/viz/service/display/overlay_strategy_underlay_cast.h"  // nogncheck
+#include "ui/display/screen.h"
+#else
+#include "chromecast/graphics/cast_window_manager_default.h"
+#endif
 
 namespace chromecast {
 namespace media {
@@ -66,9 +85,9 @@ CastRenderer::CastRenderer(
     service_manager::mojom::InterfaceProvider* host_interfaces)
     : backend_factory_(backend_factory),
       task_runner_(task_runner),
-      audio_device_id_(audio_device_id.empty()
-                           ? ::media::AudioDeviceDescription::kDefaultDeviceId
-                           : audio_device_id),
+      audio_device_id_(::media::AudioDeviceDescription::kDefaultDeviceId),
+      //VINOD: Reuse audio_device_id as vizio_player_id
+      vizio_player_id_(audio_device_id),
       video_mode_switcher_(video_mode_switcher),
       video_resolution_policy_(video_resolution_policy),
       media_resource_tracker_(media_resource_tracker),
@@ -80,7 +99,8 @@ CastRenderer::CastRenderer(
           new BalancedMediaTaskRunnerFactory(kMaxDeltaFetcher)),
       weak_factory_(this) {
   DCHECK(backend_factory_);
-  LOG(INFO) << __FUNCTION__ << ": " << this;
+  LOG(INFO) << __FUNCTION__ << ": " << this
+            << ", vizio_player_id : " << vizio_player_id_;
 
   if (video_resolution_policy_)
     video_resolution_policy_->AddObserver(this);
@@ -89,6 +109,11 @@ CastRenderer::CastRenderer(
 CastRenderer::~CastRenderer() {
   LOG(INFO) << __FUNCTION__ << ": " << this;
   DCHECK(task_runner_->BelongsToCurrentThread());
+
+  viz::OverlayStrategyUnderlayCast::RemoveOverlayCompositedCallback(
+                                                             vizio_player_id_);
+
+  video_window_controller_->ClearVideoWindowGeometry();
 
   if (video_resolution_policy_)
     video_resolution_policy_->RemoveObserver(this);
@@ -200,6 +225,23 @@ void CastRenderer::OnGetMultiroomInfo(
 
   auto backend = backend_factory_->CreateBackend(params);
 
+#if defined(USE_AURA)
+//VINOD: TODO: VideoWindowController should be created in the
+//Browser Mainloop thread. Else, protect OverlayStrategyUnderlayCast &
+//VideoPlaneController with mutex locks.
+  //VideoWindow will be created after VideoDecoder creation in the backend
+  //Hence, passing the backend to the VideoWindow now.
+/*
+  browser_main_task_->PostTask(
+            FROM_HERE,
+              base::BindOnce(&CastRenderer::CreateVideoWindowController,
+              base::Unretained(this), backend.get()));
+*/
+
+  CreateVideoWindowController(backend.get());
+
+#endif
+
   // Create pipeline.
   MediaPipelineClient pipeline_client;
   pipeline_client.error_cb =
@@ -291,6 +333,33 @@ void CastRenderer::OnGetMultiroomInfo(
     OnVideoInitializationFinished(init_cb, ::media::PIPELINE_OK);
   } else {
     init_cb.Run(::media::PIPELINE_OK);
+  }
+}
+
+void CastRenderer::CreateVideoWindowController(CmaBackend *backend) {
+  // TODO(halliwell) move audio builds to use ozone_platform_cast, then can
+  // simplify this by removing IS_CAST_AUDIO_ONLY condition.  Should then also
+  // assert(ozone_platform_cast) in BUILD.gn where it depends on //ui/ozone.
+  gfx::Size display_size =
+      display::Screen::GetScreen()->GetPrimaryDisplay().GetSizeInPixel();
+
+  LOG(INFO) << " Creating  VideoWindowController";
+  video_window_controller_.reset(new media::VideoWindowController(
+      backend,
+      Size(display_size.width(), display_size.height()),
+      shell::CastBrowserProcess::GetInstance()
+                                      ->media_task_runner_of_browser_client()));
+  viz::OverlayStrategyUnderlayCast::SetOverlayCompositedCallback(
+                 vizio_player_id_,
+                 base::BindRepeating(&media::VideoWindowController::SetGeometry,
+                             base::Unretained(video_window_controller_.get())));
+
+  media::VideoPlaneController* videoplane_controller =
+    shell::CastBrowserProcess::GetInstance()->cast_service()
+                                                     ->video_plane_controller();
+  if(videoplane_controller){
+    videoplane_controller->AddVideoWindow(vizio_player_id_,
+                                                video_window_controller_.get());
   }
 }
 

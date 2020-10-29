@@ -42,6 +42,7 @@ viz::DrawQuad* AllocateAndConstruct(
       quad->material = viz::DrawQuad::TILED_CONTENT;
       return quad;
     case viz::mojom::DrawQuadStateDataView::Tag::YUV_VIDEO_QUAD_STATE:
+//      LOG(ERROR) << "Creating YUVVideoDrawQuad from here";
       quad = list->AllocateAndConstruct<viz::YUVVideoDrawQuad>();
       quad->material = viz::DrawQuad::YUV_VIDEO_CONTENT;
       return quad;
@@ -196,6 +197,7 @@ bool StructTraits<viz::mojom::YUVVideoQuadStateDataView, viz::DrawQuad>::Read(
   quad->resource_offset = data.resource_offset();
   quad->resource_multiplier = data.resource_multiplier();
   quad->bits_per_channel = data.bits_per_channel();
+  quad->vizio_player_id = data.vizio_player_id();
   if (quad->bits_per_channel < viz::YUVVideoDrawQuad::kMinBitsPerChannel ||
       quad->bits_per_channel > viz::YUVVideoDrawQuad::kMaxBitsPerChannel) {
     return false;
@@ -207,7 +209,8 @@ bool StructTraits<viz::mojom::YUVVideoQuadStateDataView, viz::DrawQuad>::Read(
 bool StructTraits<viz::mojom::DrawQuadDataView, viz::DrawQuad>::Read(
     viz::mojom::DrawQuadDataView data,
     viz::DrawQuad* out) {
-  if (!data.ReadRect(&out->rect) || !data.ReadVisibleRect(&out->visible_rect)) {
+  if (!data.ReadRect(&out->rect) || 
+	!data.ReadVisibleRect(&out->visible_rect)) {
     return false;
   }
   out->needs_blending = data.needs_blending();

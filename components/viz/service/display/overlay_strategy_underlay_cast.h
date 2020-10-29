@@ -36,7 +36,9 @@ class VIZ_SERVICE_EXPORT OverlayStrategyUnderlayCast
   // compositor hole.
   using OverlayCompositedCallback =
       base::RepeatingCallback<void(const gfx::RectF&, gfx::OverlayTransform)>;
-  static void SetOverlayCompositedCallback(const OverlayCompositedCallback& cb);
+  static void SetOverlayCompositedCallback(
+                 const std::string &key, const OverlayCompositedCallback& cb);
+  static void RemoveOverlayCompositedCallback(const std::string &key);
 
   OverlayProcessor::StrategyType GetUMAEnum() const override;
 

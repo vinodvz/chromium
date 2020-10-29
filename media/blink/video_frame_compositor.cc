@@ -4,6 +4,8 @@
 
 #include "media/blink/video_frame_compositor.h"
 
+#include <sstream>
+#include <iomanip>
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/time/default_tick_clock.h"
@@ -22,6 +24,18 @@ const int kBackgroundRenderingTimeoutMs = 250;
 
 // static
 constexpr const char VideoFrameCompositor::kTracingCategory[];
+
+static uint32_t generate_unique_vizio_player_id() {
+  static uint32_t sPlayer_id_cntr_ = 111111111;
+
+#if 0
+  std::stringstream ss;
+  ss << std::setw(9) << std::setfill('0') << sPlayer_id_cntr_++;
+  ss << "@vzplayer";
+  return ss.str();
+#endif
+  return sPlayer_id_cntr_++;
+}
 
 VideoFrameCompositor::VideoFrameCompositor(
     const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
@@ -43,6 +57,7 @@ VideoFrameCompositor::VideoFrameCompositor(
       last_interval_(base::TimeDelta::FromSecondsD(1.0 / 60)),
       callback_(nullptr),
       submitter_(std::move(submitter)),
+      vizio_player_id_(generate_unique_vizio_player_id()),
       weak_ptr_factory_(this) {
   background_rendering_timer_.SetTaskRunner(task_runner_);
   if (submitter_.get()) {
@@ -172,6 +187,7 @@ void VideoFrameCompositor::SetCurrentFrame(
   DCHECK(task_runner_->BelongsToCurrentThread());
   base::AutoLock lock(current_frame_lock_);
   current_frame_ = frame;
+  current_frame_->SetVizioPlayerId(vizio_player_id_);
 }
 
 void VideoFrameCompositor::PutCurrentFrame() {
@@ -353,6 +369,12 @@ void VideoFrameCompositor::UpdateIsOpaque(bool is_opaque) {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
   submitter_->SetIsOpaque(is_opaque);
+}
+
+std::string VideoFrameCompositor::GetPlayerId() {
+  std::stringstream ss;
+  ss << std::setw(9) << std::setfill('0') << vizio_player_id_;
+  return ss.str();
 }
 
 }  // namespace media

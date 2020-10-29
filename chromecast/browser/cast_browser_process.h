@@ -9,6 +9,7 @@
 
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "chromecast/chromecast_buildflags.h"
 
@@ -80,6 +81,9 @@ class CastBrowserProcess {
   CastContentBrowserClient* browser_client() const {
     return cast_content_browser_client_;
   }
+
+  scoped_refptr<base::SingleThreadTaskRunner> media_task_runner_of_browser_client();
+
   CastBrowserContext* browser_context() const { return browser_context_.get(); }
   CastService* cast_service() const { return cast_service_.get(); }
 #if defined(USE_AURA)

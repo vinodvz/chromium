@@ -19,6 +19,7 @@ struct Size;
 
 namespace media {
 class CastDecoderBuffer;
+class VideoWindow;
 
 // Interface for platform-specific output of media.
 // A new MediaPipelineBackend will be instantiated for each media player
@@ -260,6 +261,9 @@ class MediaPipelineBackend {
   // platform implementation cannot support any additional simultaneous playback
   // at this time.
   virtual VideoDecoder* CreateVideoDecoder() = 0;
+
+  // VIZIO: Returns video window buffer pointer attached to the pipeline.
+  virtual VideoWindow* GetVideoWindow() = 0;
 
   // Initializes the backend.  This will be called once, after Decoder creation
   // but before all other functions.  Hardware resources for all decoders should

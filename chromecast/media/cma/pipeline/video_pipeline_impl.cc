@@ -80,6 +80,7 @@ VideoPipelineImpl::~VideoPipelineImpl() {
 }
 
 void VideoPipelineImpl::OnVideoResolutionChanged(const Size& size) {
+  LOG(ERROR) << __FUNCTION__ << " Enter VINOD...........................";
   if (state() != kPlaying)
     return;
 
@@ -97,6 +98,7 @@ void VideoPipelineImpl::OnVideoResolutionChanged(const Size& size) {
   if (cdm) {
     cdm->SetVideoResolution(size.width, size.height);
   }
+  LOG(ERROR) << __FUNCTION__ << " Exit VINOD...........................";
 }
 
 void VideoPipelineImpl::OnUpdateConfig(

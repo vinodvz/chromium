@@ -15,7 +15,7 @@ VideoDecoderDesktop::~VideoDecoderDesktop() {}
 
 void VideoDecoderDesktop::Start(base::TimeDelta start_pts) {
   DCHECK(!sink_);
-  sink_ = std::make_unique<MediaSinkDesktop>(delegate_, start_pts);
+  sink_ = std::make_unique<MediaSinkDesktop>(delegate_, start_pts, 0);
 }
 
 void VideoDecoderDesktop::Stop() {
@@ -41,6 +41,7 @@ void VideoDecoderDesktop::SetDelegate(Delegate* delegate) {
 MediaPipelineBackend::BufferStatus VideoDecoderDesktop::PushBuffer(
     CastDecoderBuffer* buffer) {
   DCHECK(sink_);
+//LOG(ERROR) << " Got VideoDecoderDesktop::PushBuffer";
   return sink_->PushBuffer(buffer);
 }
 

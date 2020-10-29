@@ -9,6 +9,7 @@
 
 #include "base/callback.h"
 #include "base/macros.h"
+#include "chromecast/media/base/video_plane_controller.h"
 
 class PrefService;
 
@@ -21,6 +22,10 @@ class BrowserContext;
 }
 
 namespace chromecast {
+namespace media
+{
+class VideoPlaneController;
+}
 
 class CastService {
  public:
@@ -33,6 +38,8 @@ class CastService {
   // Starts/stops the cast service.
   void Start();
   void Stop();
+
+  virtual media::VideoPlaneController* video_plane_controller() const;
 
  protected:
   CastService(content::BrowserContext* browser_context,

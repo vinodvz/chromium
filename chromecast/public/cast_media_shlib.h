@@ -92,6 +92,12 @@ class CHROMECAST_EXPORT CastMediaShlib {
   // Creates a media pipeline backend.  Called in the browser process for each
   // media pipeline and raw audio stream. The caller owns the returned
   // MediaPipelineBackend instance.
+  // VIZIO: A surface buffer (aka VideoWindow) also should be created by this
+  // method and attach to the MediaPipelineBackend. From applications
+  // perspective, it is an independently manageable rectangular area. Compositor
+  // will merge them together before rendering.
+  // z-order of the newly created VideoWindow should be greater than current
+  // highest.
   static MediaPipelineBackend* CreateMediaPipelineBackend(
       const MediaPipelineDeviceParams& params);
 

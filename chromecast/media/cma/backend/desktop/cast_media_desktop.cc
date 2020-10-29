@@ -23,7 +23,9 @@ class DesktopVideoPlane : public VideoPlane {
  public:
   ~DesktopVideoPlane() override {}
 
-  void SetGeometry(const RectF& display_rect, Transform transform) override {}
+  void SetGeometry(const RectF& display_rect, Transform transform) override {
+  LOG(ERROR) << "VINOD in DesktopVideoPlane::SetGeometry";
+  }
 };
 
 DesktopVideoPlane* g_video_plane = nullptr;

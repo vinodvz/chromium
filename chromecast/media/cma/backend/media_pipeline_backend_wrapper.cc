@@ -53,7 +53,7 @@ class RevokedMediaPipelineBackendWrapper : public DecoderCreatorCmaBackend {
     NOTREACHED();
     return nullptr;
   }
-
+  VideoWindow* GetVideoWindow() override { return nullptr; }
   bool Initialize() override { return true; }
   bool Start(int64_t start_pts) override { return true; }
   void Stop() override {}
@@ -88,6 +88,7 @@ class ActiveMediaPipelineBackendWrapper : public DecoderCreatorCmaBackend {
   // CmaBackend implementation:
   AudioDecoder* CreateAudioDecoder() override;
   VideoDecoder* CreateVideoDecoder() override;
+  VideoWindow* GetVideoWindow() override;
   bool Initialize() override;
   bool Start(int64_t start_pts) override;
   void Stop() override;
@@ -213,6 +214,10 @@ ActiveMediaPipelineBackendWrapper::CreateVideoDecoderWrapper() {
   return video_decoder;
 }
 
+VideoWindow* ActiveMediaPipelineBackendWrapper::GetVideoWindow() {
+  return backend_->GetVideoWindow();
+}
+
 bool ActiveMediaPipelineBackendWrapper::Initialize() {
   return backend_->Initialize();
 }
@@ -302,6 +307,10 @@ CmaBackend::VideoDecoder* MediaPipelineBackendWrapper::CreateVideoDecoder() {
   DCHECK(!video_decoder_);
   video_decoder_ = backend_->CreateVideoDecoderWrapper();
   return video_decoder_.get();
+}
+
+VideoWindow* MediaPipelineBackendWrapper::GetVideoWindow() {
+  return backend_->GetVideoWindow();
 }
 
 bool MediaPipelineBackendWrapper::Initialize() {

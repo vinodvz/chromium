@@ -15,7 +15,7 @@ AudioDecoderDesktop::~AudioDecoderDesktop() {}
 
 void AudioDecoderDesktop::Start(base::TimeDelta start_pts) {
   DCHECK(!sink_);
-  sink_ = std::make_unique<MediaSinkDesktop>(delegate_, start_pts);
+  sink_ = std::make_unique<MediaSinkDesktop>(delegate_, start_pts, 1);
 }
 
 void AudioDecoderDesktop::Stop() {
@@ -41,6 +41,7 @@ void AudioDecoderDesktop::SetDelegate(Delegate* delegate) {
 MediaPipelineBackend::BufferStatus AudioDecoderDesktop::PushBuffer(
     CastDecoderBuffer* buffer) {
   DCHECK(sink_);
+// LOG(ERROR) <<" AudioDecoderDesktop::PushBuffer()";
   return sink_->PushBuffer(buffer);
 }
 

@@ -9,18 +9,21 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "chromecast/public/media/cast_decoder_buffer.h"
 #include "media/base/timestamp_constants.h"
+#include "chromecast/public/graphics_types.h"
 
 namespace chromecast {
 namespace media {
 
 MediaSinkDesktop::MediaSinkDesktop(
     MediaPipelineBackend::Decoder::Delegate* delegate,
-    base::TimeDelta start_pts)
+    base::TimeDelta start_pts,
+    int type)
     : delegate_(delegate),
       time_interpolator_(&tick_clock_),
       playback_rate_(1.0f),
       last_frame_pts_(start_pts),
-      received_eos_(false) {
+      received_eos_(false),
+      type_(type) {
   DCHECK(delegate_);
   time_interpolator_.SetPlaybackRate(playback_rate_);
   time_interpolator_.SetBounds(start_pts, start_pts, tick_clock_.NowTicks());
@@ -39,6 +42,16 @@ void MediaSinkDesktop::SetPlaybackRate(float rate) {
   if (received_eos_) {
     eos_task_.Cancel();
     ScheduleEndOfStreamTask();
+  }
+  if(0 == type_ && rate >= 1.0f) {
+    resolution_task_.Cancel();
+    Size sz(1200,800);
+    resolution_task_.Reset(
+      base::Bind(&MediaPipelineBackend::Decoder::Delegate::OnVideoResolutionChanged,
+		 base::Unretained(delegate_), sz));
+    base::TimeDelta delay(base::TimeDelta::FromSeconds(1));
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, resolution_task_.callback(), delay);
   }
 }
 

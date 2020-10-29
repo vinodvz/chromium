@@ -401,6 +401,8 @@ base::Optional<pb::VideoDecoderConfig::Format> ToProtoVideoDecoderConfigFormat(
     CASE_RETURN_OTHER(PIXEL_FORMAT_YUV444P12);
     CASE_RETURN_OTHER(PIXEL_FORMAT_Y16);
     CASE_RETURN_OTHER(PIXEL_FORMAT_ABGR);
+	  case PIXEL_FORMAT_H264:
+    		break;
     CASE_RETURN_OTHER(PIXEL_FORMAT_XBGR);
   }
   return base::nullopt;  // Not a 'default' to ensure compile-time checks.

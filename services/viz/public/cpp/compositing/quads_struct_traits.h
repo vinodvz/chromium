@@ -479,6 +479,13 @@ struct StructTraits<viz::mojom::YUVVideoQuadStateDataView, viz::DrawQuad> {
         viz::YUVVideoDrawQuad::MaterialCast(&input);
     return quad->bits_per_channel;
   }
+
+  static uint32_t vizio_player_id(const viz::DrawQuad& input) {
+    const viz::YUVVideoDrawQuad* quad =
+        viz::YUVVideoDrawQuad::MaterialCast(&input);
+    return quad->vizio_player_id;
+  }
+
   static gfx::ColorSpace video_color_space(const viz::DrawQuad& input) {
     const viz::YUVVideoDrawQuad* quad =
         viz::YUVVideoDrawQuad::MaterialCast(&input);

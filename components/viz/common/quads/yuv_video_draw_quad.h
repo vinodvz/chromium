@@ -80,6 +80,7 @@ class VIZ_COMMON_EXPORT YUVVideoDrawQuad : public DrawQuad {
   float resource_offset = 0.0f;
   float resource_multiplier = 1.0f;
   uint32_t bits_per_channel = 8;
+  uint32_t vizio_player_id;
   // TODO(hubbe): Move to ResourceProvider::ScopedSamplerGL.
   gfx::ColorSpace video_color_space;
   ui::ProtectedVideoType protected_video_type = ui::ProtectedVideoType::kClear;

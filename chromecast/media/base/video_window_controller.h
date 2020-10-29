@@ -2,16 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROMECAST_MEDIA_VIDEO_PLANE_CONTROLLER_H_
-#define CHROMECAST_MEDIA_VIDEO_PLANE_CONTROLLER_H_
+#ifndef CHROMECAST_MEDIA_VIDEO_WINDOW_CONTROLLER_H_
+#define CHROMECAST_MEDIA_VIDEO_WINDOW_CONTROLLER_H_
 
-#include <unordered_map>
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/singleton.h"
 #include "base/threading/thread_checker.h"
 #include "chromecast/public/graphics_types.h"
-#include "chromecast/public/video_plane.h"
+#include "chromecast/public/video_window.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/overlay_transform.h"
 
@@ -21,29 +20,29 @@ class SingleThreadTaskRunner;
 
 namespace chromecast {
 namespace media {
+class CmaBackend;
 
-class VideoWindowController;
-
-// Provides main interface for setting video plane geometry.  All callsites
-// should use this over VideoPlane::SetGeometry.  Reasons for this:
-// * provides conversion between graphics plane coordinates and screen
+// Provides main interface for setting video window geometry.  All callsites
+// should use this over VideoWindow::SetGeometry.  Reasons for this:
+// * provides conversion between graphics window coordinates and screen
 //   resolution coordinates
-// * updates VideoPlane when screen resolution changes
+// * updates VideoWindow when screen resolution changes
 // * handles threading correctly (posting SetGeometry to media thread).
 // * coalesces multiple calls in short space of time to prevent flooding the
 //   media thread with SetGeometry calls (which are expensive on many
 //   platforms).
 // All public methods should be called from the same thread that the class was
 // constructed on.
-class VideoPlaneController {
+class VideoWindowController {
  public:
-  VideoPlaneController(
+  VideoWindowController(
+      CmaBackend *backend,
       const Size& graphics_resolution,
       scoped_refptr<base::SingleThreadTaskRunner> media_task_runner);
-  ~VideoPlaneController();
+  ~VideoWindowController();
 
-  // Sets the video plane geometry in *graphics plane coordinates*. If there is
-  // no change to video plane parameters from the last call to this method, it
+  // Sets the video window geometry in *graphics window coordinates*. If there is
+  // no change to video window parameters from the last call to this method, it
   // is a no-op.
   void SetGeometry(const gfx::RectF& display_rect,
                    gfx::OverlayTransform transform);
@@ -54,7 +53,7 @@ class VideoPlaneController {
   // from the last call to this method, it is a no-op.
   void SetScreenResolution(const Size& resolution);
 
-  // After Pause is called, no further calls to VideoPlane::SetGeometry will be
+  // After Pause is called, no further calls to VideoWindow::SetGeometry will be
   // made except for any pending calls already scheduled on the media thread.
   // The Set methods will however update cached parameters that will take
   // effect once the class is resumed. Safe to call multiple times.
@@ -62,52 +61,48 @@ class VideoPlaneController {
   // media thread. When this returns, the caller needs to know that absolutely
   // no more SetGeometry calls will be made.
   void Pause();
-  // Makes class active again, and clears any cached video plane geometry
+  // Makes class active again, and clears any cached video window geometry
   // parameters. Safe to call multiple times.
   void Resume();
   bool is_paused() const;
-  void ClearVideoPlaneGeometry();
-
-  void AddVideoWindow(const std::string &key, VideoWindowController*);
-
-  void RemoveVideoWindow(const std::string &key);
+  void ClearVideoWindowGeometry();
 
  private:
-  friend struct base::DefaultSingletonTraits<VideoPlaneController>;
+  class RateLimitedSetVideoWindowGeometry;
+  friend struct base::DefaultSingletonTraits<VideoWindowController>;
 
   // Check if HaveDataForSetGeometry. If not, this method is a no-op. Otherwise
   // it scales the display rect from graphics to device resolution coordinates.
-  // Then posts task to media thread for VideoPlane::SetGeometry.
+  // Then posts task to media thread for VideoWindow::SetGeometry.
   void MaybeRunSetGeometry();
   // Checks if all data has been collected to make calls to
-  // VideoPlane::SetGeometry.
+  // VideoWindow::SetGeometry.
   bool HaveDataForSetGeometry() const;
-  // Clears any cached video plane geometry parameters.
-  //void ClearVideoPlaneGeometry();
+  // Clears any cached video window geometry parameters.
+  //void ClearVideoWindowGeometry();
 
   bool is_paused_;
 
   // Current resolutions
   bool have_screen_res_;
   Size screen_res_;
-  const Size graphics_plane_res_;
+  const Size graphics_window_res_;
 
-  // Saved video plane parameters (in graphics plane coordinates)
+  // Saved video window parameters (in graphics window coordinates)
   // for use when screen resolution changes.
-  bool have_video_plane_geometry_;
-  RectF video_plane_display_rect_;
-  VideoPlane::Transform video_plane_transform_;
-
-  std::unordered_map<std::string, VideoWindowController*> video_window_map_;
+  bool have_video_window_geometry_;
+  RectF video_window_display_rect_;
+  VideoWindow::Transform video_window_transform_;
 
   scoped_refptr<base::SingleThreadTaskRunner> media_task_runner_;
+  scoped_refptr<RateLimitedSetVideoWindowGeometry> video_window_wrapper_;
 
   base::ThreadChecker thread_checker_;
 
-  DISALLOW_COPY_AND_ASSIGN(VideoPlaneController);
+  DISALLOW_COPY_AND_ASSIGN(VideoWindowController);
 };
 
 }  // namespace media
 }  // namespace chromecast
 
-#endif  // CHROMECAST_MEDIA_VIDEO_PLANE_CONTROLLER_H_
+#endif  // CHROMECAST_MEDIA_VIDEO_WINDOW_CONTROLLER_H_
