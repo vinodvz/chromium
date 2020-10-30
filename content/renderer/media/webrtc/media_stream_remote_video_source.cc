@@ -160,6 +160,16 @@ void MediaStreamRemoteVideoSource::RemoteVideoSourceDelegate::OnFrame(
           elapsed_timestamp);
       break;
     }
+    case webrtc::VideoFrameBuffer::Type::kH264: {
+      webrtc::H264BufferInterface* h264_buffer = buffer->GetH264();
+      // WebRTC defines H264 unencoded data
+      // decoding will be done by the hardware decoder.
+      video_frame = media::VideoFrame::WrapExternalData(
+          media::PIXEL_FORMAT_H264, size, gfx::Rect(size), size,
+          (unsigned char *)h264_buffer->Data(), h264_buffer->Data_len(),
+          elapsed_timestamp);
+      break;
+    }
     default:
       NOTREACHED();
   }

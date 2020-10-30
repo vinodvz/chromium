@@ -46,6 +46,7 @@ void WebRtcVideoCapturerAdapter::OnFrameCaptured(
   TRACE_EVENT0("media", "WebRtcVideoCapturerAdapter::OnFrameCaptured");
   if (!(input_frame->IsMappable() &&
         (input_frame->format() == media::PIXEL_FORMAT_I420 ||
+         input_frame->format() == media::PIXEL_FORMAT_H264 ||
          input_frame->format() == media::PIXEL_FORMAT_I420A)) &&
       !input_frame->HasTextures()) {
     // Since connecting sources and sinks do not check the format, we need to
