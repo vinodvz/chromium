@@ -73,6 +73,7 @@ class CastRenderer : public ::media::Renderer,
   void StartPlayingFrom(base::TimeDelta time) final;
   void SetPlaybackRate(double playback_rate) final;
   void SetVolume(float volume) final;
+  void SetSecondary(bool secondary) final;
   base::TimeDelta GetMediaTime() final;
 
   // VideoResolutionPolicy::Observer implementation.
@@ -122,6 +123,8 @@ class CastRenderer : public ::media::Renderer,
   std::unique_ptr<MediaPipelineImpl> pipeline_;
   bool eos_[2];
   gfx::Size video_res_;
+
+  base::Optional<bool> pending_secondary_;
 
   ::media::mojom::ApplicationSessionIdManagerPtr
       application_session_id_manager_ptr_;

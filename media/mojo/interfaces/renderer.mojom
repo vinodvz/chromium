@@ -34,6 +34,9 @@ interface Renderer {
   // Sets the output volume. The default volume should be 1.
   SetVolume(float volume);
 
+  // Sets the secondary attribute. The default value should be false.  
+  SetSecondary(bool secondary);
+
   // Attaches the CDM associated with |cdm_id| to the renderer service,
   // executing the callback with whether the CDM was successfully attached.
   SetCdm(int32 cdm_id) => (bool success);

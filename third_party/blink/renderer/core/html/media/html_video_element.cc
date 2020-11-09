@@ -186,6 +186,11 @@ bool HTMLVideoElement::IsPresentationAttribute(
 
 void HTMLVideoElement::ParseAttribute(
     const AttributeModificationParams& params) {
+
+  if (params.name == html_names::kSecondaryAttr) {
+    this->secondary_ = (params.new_value != "false");
+  }
+
   if (params.name == kPosterAttr) {
     // In case the poster attribute is set after playback, don't update the
     // display state, post playback the correct state will be picked up.
@@ -252,6 +257,11 @@ unsigned HTMLVideoElement::videoHeight() const {
     return 0;
   return GetWebMediaPlayer()->NaturalSize().height;
 }
+
+unsigned HTMLVideoElement::videoSecondary() const {
+    return this->secondary_;
+}
+
 
 IntSize HTMLVideoElement::videoVisibleSize() const {
   return GetWebMediaPlayer() ? IntSize(GetWebMediaPlayer()->VisibleRect())

@@ -61,6 +61,7 @@ class MEDIA_EXPORT RendererImpl : public Renderer {
   void StartPlayingFrom(base::TimeDelta time) final;
   void SetPlaybackRate(double playback_rate) final;
   void SetVolume(float volume) final;
+  void SetSecondary(bool secondary) final;
   base::TimeDelta GetMediaTime() final;
   void OnSelectedVideoTracksChanged(
       const std::vector<DemuxerStream*>& enabled_tracks,

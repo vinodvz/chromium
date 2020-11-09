@@ -37,16 +37,22 @@ AudioPipelineImpl::~AudioPipelineImpl() = default;
 
 ::media::PipelineStatus AudioPipelineImpl::Initialize(
     const ::media::AudioDecoderConfig& audio_config,
-    std::unique_ptr<CodedFrameProvider> frame_provider) {
+    std::unique_ptr<CodedFrameProvider> frame_provider,
+    bool secondary) {
   LOG(INFO) << __FUNCTION__ << " " << audio_config.AsHumanReadableString();
   if (frame_provider) {
     SetCodedFrameProvider(std::move(frame_provider), kAppAudioBufferSize,
                           kMaxAudioFrameSize);
   }
 
+  chromecast::media::StreamId streamID = kPrimary;
+  if (secondary) {
+    streamID = kSecondary;
+  }
+
   DCHECK(audio_config.IsValidConfig());
   audio_config_ =
-      DecoderConfigAdapter::ToCastAudioConfig(kPrimary, audio_config);
+      DecoderConfigAdapter::ToCastAudioConfig(streamID, audio_config);
   if (!audio_decoder_->SetConfig(audio_config_)) {
     return ::media::PIPELINE_ERROR_INITIALIZATION_FAILED;
   }

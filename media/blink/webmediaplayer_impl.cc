@@ -1131,6 +1131,13 @@ void WebMediaPlayerImpl::SetVolume(double volume) {
   UpdatePlayState();
 }
 
+void WebMediaPlayerImpl::SetSecondary(bool secondary) {
+  DVLOG(1) << __func__ << "(" << secondary << ")";
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  secondary_ = secondary;
+  pipeline_controller_.SetSecondary(secondary);
+}
+
 void WebMediaPlayerImpl::EnterPictureInPicture(
     blink::WebMediaPlayer::PipWindowOpenedCallback callback) {
   if (!surface_layer_for_video_enabled_)

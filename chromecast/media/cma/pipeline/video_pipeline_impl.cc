@@ -36,11 +36,17 @@ VideoPipelineImpl::VideoPipelineImpl(CmaBackend::VideoDecoder* decoder,
 }
 
 VideoPipelineImpl::~VideoPipelineImpl() {
+  DCHECK(video_decoder_);
+}
+
+void VideoPipelineImpl::SetSecondary(bool secondary) {
+  DCHECK(video_decoder_);
 }
 
 ::media::PipelineStatus VideoPipelineImpl::Initialize(
     const std::vector<::media::VideoDecoderConfig>& configs,
-    std::unique_ptr<CodedFrameProvider> frame_provider) {
+    std::unique_ptr<CodedFrameProvider> frame_provider,
+    bool secondary) {
   DCHECK_GT(configs.size(), 0u);
   for (const auto& config : configs) {
     LOG(INFO) << __FUNCTION__ << " " << config.AsHumanReadableString();
@@ -57,9 +63,14 @@ VideoPipelineImpl::~VideoPipelineImpl() {
   DCHECK_LE(configs.size(), 2U);
   DCHECK(configs[0].IsValidConfig());
   encryption_schemes_.resize(configs.size());
+  chromecast::media::StreamId streamID = kPrimary;
+
+  if (secondary) {
+    streamID = kSecondary;
+  }
 
   VideoConfig video_config =
-      DecoderConfigAdapter::ToCastVideoConfig(kPrimary, configs[0]);
+      DecoderConfigAdapter::ToCastVideoConfig(streamID, configs[0]);
   encryption_schemes_[0] = video_config.encryption_scheme;
 
   VideoConfig secondary_config;

@@ -49,15 +49,18 @@ class MediaPipelineImpl {
   ::media::PipelineStatus InitializeAudio(
       const ::media::AudioDecoderConfig& config,
       const AvPipelineClient& client,
-      std::unique_ptr<CodedFrameProvider> frame_provider);
+      std::unique_ptr<CodedFrameProvider> frame_provider,
+      bool secondary);
   ::media::PipelineStatus InitializeVideo(
       const std::vector<::media::VideoDecoderConfig>& configs,
       const VideoPipelineClient& client,
-      std::unique_ptr<CodedFrameProvider> frame_provider);
+      std::unique_ptr<CodedFrameProvider> frame_provider,
+      bool secondary);
   void StartPlayingFrom(base::TimeDelta time);
   void Flush(const base::Closure& flush_cb);
   void SetPlaybackRate(double playback_rate);
   void SetVolume(float volume);
+  void SetSecondary(bool secondary);
   base::TimeDelta GetMediaTime() const;
   bool HasAudio() const;
   bool HasVideo() const;

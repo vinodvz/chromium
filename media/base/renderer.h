@@ -55,6 +55,9 @@ class MEDIA_EXPORT Renderer {
   // Sets the output volume. The default volume should be 1.
   virtual void SetVolume(float volume) = 0;
 
+  // Sets the secondary attribute. The default value should be false.
+  virtual void SetSecondary(bool secondary) = 0;
+
   // Returns the current media time.
   //
   // This method must be safe to call from any thread.

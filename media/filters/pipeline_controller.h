@@ -128,6 +128,7 @@ class MEDIA_EXPORT PipelineController {
   void SetPlaybackRate(double playback_rate);
   float GetVolume() const;
   void SetVolume(float volume);
+  void SetSecondary(bool secondary);
   base::TimeDelta GetMediaTime() const;
   Ranges<base::TimeDelta> GetBufferedTimeRanges() const;
   base::TimeDelta GetMediaDuration() const;

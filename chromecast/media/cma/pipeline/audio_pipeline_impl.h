@@ -32,7 +32,8 @@ class AudioPipelineImpl : public AvPipelineImpl {
 
   ::media::PipelineStatus Initialize(
       const ::media::AudioDecoderConfig& config,
-      std::unique_ptr<CodedFrameProvider> frame_provider);
+      std::unique_ptr<CodedFrameProvider> frame_provider,
+      bool secondary);
 
   void SetVolume(float volume);
 

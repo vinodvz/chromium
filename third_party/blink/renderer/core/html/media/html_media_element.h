@@ -580,6 +580,7 @@ class CORE_EXPORT HTMLMediaElement
   Member<MediaError> error_;
 
   double volume_;
+  bool secondary_;
   double last_seek_time_;
 
   double previous_progress_time_;

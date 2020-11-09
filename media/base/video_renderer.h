@@ -62,6 +62,9 @@ class MEDIA_EXPORT VideoRenderer {
   // time stops progressing.
   virtual void OnTimeProgressing() = 0;
   virtual void OnTimeStopped() = 0;
+  
+  // Sets the secondary attribute. The default value should be false.
+  virtual void SetSecondary(bool secondary) = 0;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(VideoRenderer);

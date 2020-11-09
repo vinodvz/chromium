@@ -155,6 +155,7 @@ class WebMediaPlayer {
   virtual void Seek(double seconds) = 0;
   virtual void SetRate(double) = 0;
   virtual void SetVolume(double) = 0;
+  virtual void SetSecondary(bool) = 0;
 
   // Enter Picture-in-Picture and notifies Blink with window size
   // when video successfully enters Picture-in-Picture.

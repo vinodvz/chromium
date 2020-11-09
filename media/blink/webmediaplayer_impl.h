@@ -145,6 +145,7 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   void Seek(double seconds) override;
   void SetRate(double rate) override;
   void SetVolume(double volume) override;
+  void SetSecondary(bool secondary) override;
   void EnterPictureInPicture(
       blink::WebMediaPlayer::PipWindowOpenedCallback callback) override;
   void ExitPictureInPicture(
@@ -827,6 +828,7 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // if the WebMediaPlayerDelegate has requested a volume reduction (ducking)
   // for a transient sound.  Playout volume is derived by volume * multiplier.
   double volume_ = 1.0;
+  bool secondary_ = false;
   double volume_multiplier_ = 1.0;
 
   std::unique_ptr<RendererFactorySelector> renderer_factory_selector_;

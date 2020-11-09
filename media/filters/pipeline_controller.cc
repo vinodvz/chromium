@@ -340,6 +340,10 @@ void PipelineController::SetVolume(float volume) {
   pipeline_->SetVolume(volume);
 }
 
+void PipelineController::SetSecondary(bool secondary) {
+  pipeline_->SetSecondary(secondary);
+}
+
 base::TimeDelta PipelineController::GetMediaTime() const {
   return pipeline_->GetMediaTime();
 }

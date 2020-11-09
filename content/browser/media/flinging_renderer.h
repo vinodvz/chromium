@@ -47,6 +47,7 @@ class CONTENT_EXPORT FlingingRenderer : public media::Renderer,
   void StartPlayingFrom(base::TimeDelta time) override;
   void SetPlaybackRate(double playback_rate) override;
   void SetVolume(float volume) override;
+  void SetSecondary(bool secondary) override;
   base::TimeDelta GetMediaTime() override;
 
   // media::MediaStatusObserver implementation.

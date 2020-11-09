@@ -268,6 +268,15 @@ void RendererImpl::SetVolume(float volume) {
     audio_renderer_->SetVolume(volume);
 }
 
+void RendererImpl::SetSecondary(bool secondary) {
+  DVLOG(1) << __func__;
+  DCHECK(task_runner_->BelongsToCurrentThread());
+
+  if (video_renderer_)
+    video_renderer_->SetSecondary(secondary);
+}
+
+
 base::TimeDelta RendererImpl::GetMediaTime() {
   // No BelongsToCurrentThread() checking because this can be called from other
   // threads.

@@ -213,6 +213,9 @@ class MEDIA_EXPORT Pipeline {
   // channels proportionately for multi-channel audio streams.
   virtual void SetVolume(float volume) = 0;
 
+  // Attempt to set the secondary attribure of the video renderer.
+  virtual void SetSecondary(bool secondary) = 0;
+
   // Returns the current media playback time, which progresses from 0 until
   // GetMediaDuration().
   virtual base::TimeDelta GetMediaTime() const = 0;

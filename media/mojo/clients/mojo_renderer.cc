@@ -214,6 +214,14 @@ void MojoRenderer::SetVolume(float volume) {
   remote_renderer_->SetVolume(volume);
 }
 
+void MojoRenderer::SetSecondary(bool secondary) {
+  DVLOG(2) << __func__ << "(" << secondary << ")";
+  DCHECK(task_runner_->BelongsToCurrentThread());
+  DCHECK(remote_renderer_.is_bound());
+
+  remote_renderer_->SetSecondary(secondary);
+}
+
 base::TimeDelta MojoRenderer::GetMediaTime() {
   base::AutoLock auto_lock(lock_);
   return media_time_interpolator_.GetInterpolatedTime();

@@ -207,6 +207,10 @@ void VideoRendererImpl::StartPlayingFrom(base::TimeDelta timestamp) {
   AttemptRead_Locked();
 }
 
+void VideoRendererImpl::SetSecondary(bool secondary) {
+  DVLOG(3) << __func__;
+}
+
 void VideoRendererImpl::Initialize(
     DemuxerStream* stream,
     CdmContext* cdm_context,

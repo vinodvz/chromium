@@ -62,6 +62,7 @@ class PipelineImpl::RendererWrapper : public DemuxerHost,
   void Resume(std::unique_ptr<Renderer> renderer, base::TimeDelta time);
   void SetPlaybackRate(double playback_rate);
   void SetVolume(float volume);
+  void SetSecondary(bool secondary);
   base::TimeDelta GetMediaTime() const;
   Ranges<base::TimeDelta> GetBufferedTimeRanges() const;
   bool DidLoadingProgress();
@@ -163,6 +164,7 @@ class PipelineImpl::RendererWrapper : public DemuxerHost,
   Demuxer* demuxer_;
   double playback_rate_;
   float volume_;
+  bool secondary_;
   CdmContext* cdm_context_;
 
   // Lock used to serialize |shared_state_|.
@@ -436,6 +438,14 @@ void PipelineImpl::RendererWrapper::SetVolume(float volume) {
   volume_ = volume;
   if (state_ == kPlaying)
     shared_state_.renderer->SetVolume(volume_);
+}
+
+void PipelineImpl::RendererWrapper::SetSecondary(bool secondary) {
+  DCHECK(media_task_runner_->BelongsToCurrentThread());
+
+  secondary_ = secondary;
+  if (state_ == kPlaying)
+    shared_state_.renderer->SetSecondary(secondary_);
 }
 
 base::TimeDelta PipelineImpl::RendererWrapper::GetMediaTime() const {
@@ -917,6 +927,8 @@ void PipelineImpl::RendererWrapper::InitializeRenderer(
   }
 
   shared_state_.renderer->Initialize(demuxer_, this, done_cb);
+
+  shared_state_.renderer->SetSecondary(secondary_);
 }
 
 void PipelineImpl::RendererWrapper::DestroyRenderer() {
@@ -1189,6 +1201,17 @@ void PipelineImpl::SetVolume(float volume) {
       FROM_HERE,
       base::Bind(&RendererWrapper::SetVolume,
                  base::Unretained(renderer_wrapper_.get()), volume_));
+}
+
+void PipelineImpl::SetSecondary(bool secondary) {
+  DVLOG(2) << __func__ << "(" << secondary << ")";
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  secondary_ = secondary;
+  media_task_runner_->PostTask(
+      FROM_HERE,
+      base::BindOnce(&RendererWrapper::SetSecondary,
+                     base::Unretained(renderer_wrapper_.get()), secondary_));
 }
 
 base::TimeDelta PipelineImpl::GetMediaTime() const {

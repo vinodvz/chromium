@@ -171,7 +171,8 @@ void MediaPipelineImpl::SetCdm(CastCdmContext* cdm_context) {
 ::media::PipelineStatus MediaPipelineImpl::InitializeAudio(
     const ::media::AudioDecoderConfig& config,
     const AvPipelineClient& client,
-    std::unique_ptr<CodedFrameProvider> frame_provider) {
+    std::unique_ptr<CodedFrameProvider> frame_provider,
+    bool secondary) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!audio_decoder_);
 
@@ -183,7 +184,7 @@ void MediaPipelineImpl::SetCdm(CastCdmContext* cdm_context) {
   if (cdm_context_)
     audio_pipeline_->SetCdm(cdm_context_);
   ::media::PipelineStatus status =
-      audio_pipeline_->Initialize(config, std::move(frame_provider));
+      audio_pipeline_->Initialize(config, std::move(frame_provider), secondary);
 
   if (status == ::media::PipelineStatus::PIPELINE_OK) {
     // TODO(b/67112414): Do something better than this.
@@ -196,7 +197,8 @@ void MediaPipelineImpl::SetCdm(CastCdmContext* cdm_context) {
 ::media::PipelineStatus MediaPipelineImpl::InitializeVideo(
     const std::vector<::media::VideoDecoderConfig>& configs,
     const VideoPipelineClient& client,
-    std::unique_ptr<CodedFrameProvider> frame_provider) {
+    std::unique_ptr<CodedFrameProvider> frame_provider,
+    bool secondary) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(!video_decoder_);
 
@@ -207,7 +209,7 @@ void MediaPipelineImpl::SetCdm(CastCdmContext* cdm_context) {
   video_pipeline_.reset(new VideoPipelineImpl(video_decoder_, client));
   if (cdm_context_)
     video_pipeline_->SetCdm(cdm_context_);
-  return video_pipeline_->Initialize(configs, std::move(frame_provider));
+  return video_pipeline_->Initialize(configs, std::move(frame_provider), secondary);
 }
 
 void MediaPipelineImpl::StartPlayingFrom(base::TimeDelta time) {
@@ -326,6 +328,13 @@ void MediaPipelineImpl::SetVolume(float volume) {
   DCHECK(thread_checker_.CalledOnValidThread());
   if (audio_pipeline_)
     audio_pipeline_->SetVolume(volume);
+}
+
+void MediaPipelineImpl::SetSecondary(bool secondary) {
+  LOG(INFO) << __FUNCTION__ << " secondary =" << secondary;
+  DCHECK(thread_checker_.CalledOnValidThread());
+  if (video_pipeline_)
+    video_pipeline_->SetSecondary(secondary);
 }
 
 base::TimeDelta MediaPipelineImpl::GetMediaTime() const {

@@ -31,8 +31,10 @@
 ] interface HTMLVideoElement : HTMLMediaElement {
     [CEReactions, Reflect] attribute unsigned long width;
     [CEReactions, Reflect] attribute unsigned long height;
+    [CEReactions, Reflect] attribute unsigned long secondary;
     readonly attribute unsigned long videoWidth;
     readonly attribute unsigned long videoHeight;
+    readonly attribute unsigned long videoSecondary;
     [CEReactions, Reflect, URL, Measure] attribute DOMString poster;
 
     // github.com/ojanvafai/intrinsicsize-attribute/blob/master/README.md

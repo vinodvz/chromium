@@ -106,6 +106,7 @@ class MEDIA_BLINK_EXPORT VideoFrameCompositor : public VideoRendererSink,
   // same thread (typically the media thread).
   void Start(RenderCallback* callback) override;
   void Stop() override;
+
   void PaintSingleFrame(const scoped_refptr<VideoFrame>& frame,
                         bool repaint_duplicate_frame = false) override;
 

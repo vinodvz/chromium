@@ -125,6 +125,10 @@ void MojoRendererService::SetVolume(float volume) {
   renderer_->SetVolume(volume);
 }
 
+void MojoRendererService::SetSecondary(bool secondary) {
+  renderer_->SetSecondary(secondary);
+}
+
 void MojoRendererService::SetCdm(int32_t cdm_id, SetCdmCallback callback) {
   if (!mojo_cdm_service_context_) {
     DVLOG(1) << "CDM service context not available.";

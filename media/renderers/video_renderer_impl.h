@@ -71,6 +71,8 @@ class MEDIA_EXPORT VideoRendererImpl
   void OnTimeProgressing() override;
   void OnTimeStopped() override;
 
+  void SetSecondary(bool secondary) override;
+
   void SetTickClockForTesting(const base::TickClock* tick_clock);
   size_t frames_queued_for_testing() const {
     return algorithm_->frames_queued();

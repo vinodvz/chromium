@@ -113,6 +113,10 @@ base::TimeDelta FlingingRenderer::GetMediaTime() {
   return controller_->GetApproximateCurrentTime();
 }
 
+void FlingingRenderer::SetSecondary(bool secondary) {
+  DVLOG(2) << __func__;
+}
+
 void FlingingRenderer::OnMediaStatusUpdated(const media::MediaStatus& status) {
   // TODO(tguilbert): propagate important changes to RendererClient.
 }

@@ -636,6 +636,10 @@ void WebMediaPlayerMS::SetVolume(double volume) {
   delegate_->DidPlayerMutedStatusChange(delegate_id_, volume == 0.0);
 }
 
+void WebMediaPlayerMS::SetSecondary(bool secondary) {
+  NOTIMPLEMENTED();
+}
+
 void WebMediaPlayerMS::EnterPictureInPicture(
     blink::WebMediaPlayer::PipWindowOpenedCallback callback) {
   if (!bridge_)

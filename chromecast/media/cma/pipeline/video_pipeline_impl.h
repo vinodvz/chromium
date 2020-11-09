@@ -33,7 +33,10 @@ class VideoPipelineImpl : public AvPipelineImpl {
 
   ::media::PipelineStatus Initialize(
       const std::vector<::media::VideoDecoderConfig>& configs,
-      std::unique_ptr<CodedFrameProvider> frame_provider);
+      std::unique_ptr<CodedFrameProvider> frame_provider,
+      bool secondary);
+
+  void SetSecondary(bool secondary);
 
   // AvPipelineImpl implementation:
   void UpdateStatistics() override;

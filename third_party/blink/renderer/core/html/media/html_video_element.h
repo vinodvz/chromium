@@ -65,6 +65,7 @@ class CORE_EXPORT HTMLVideoElement final : public HTMLMediaElement,
 
   unsigned videoWidth() const;
   unsigned videoHeight() const;
+  unsigned videoSecondary() const;
 
   IntSize videoVisibleSize() const;
 
