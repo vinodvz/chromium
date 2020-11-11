@@ -28,6 +28,8 @@ class WebRtcVideoFrameAdapter : public webrtc::VideoFrameBuffer {
 
   rtc::scoped_refptr<webrtc::I420BufferInterface> ToI420() override;
 
+  rtc::scoped_refptr<webrtc::H264BufferInterface> ToH264() override;
+
  protected:
   ~WebRtcVideoFrameAdapter() override;
 

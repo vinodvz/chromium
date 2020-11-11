@@ -34,6 +34,9 @@ class SharedMemoryBufferTracker final : public VideoCaptureBufferTracker {
   base::SharedMemoryHandle GetNonOwnedSharedMemoryHandleForLegacyIPC() override;
   uint32_t GetMemorySizeInBytes() override;
 
+  static size_t CalculateRequiredBufferSize(const gfx::Size& dimensions,
+                                  media::VideoPixelFormat format,
+                                  const media::mojom::PlaneStridesPtr& strides);
  private:
   SharedMemoryHandleProvider provider_;
 

@@ -113,6 +113,7 @@ class CAPTURE_EXPORT VideoCaptureDevice
       Buffer& operator=(Buffer&& other);
 
       int id;
+      size_t size;
       int frame_feedback_id;
       std::unique_ptr<HandleProvider> handle_provider;
       std::unique_ptr<ScopedAccessPermission> access_permission;

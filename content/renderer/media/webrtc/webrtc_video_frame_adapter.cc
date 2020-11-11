@@ -65,6 +65,28 @@ class FrameAdapterWithA : public FrameAdapter<BaseWithA> {
   scoped_refptr<media::VideoFrame> frame_;
 };
 
+template <typename Base>
+class CodedFrameAdapter : public Base {
+ public:
+  explicit CodedFrameAdapter(const scoped_refptr<media::VideoFrame>& frame)
+      : frame_(std::move(frame)) {}
+
+ private:
+  int width() const override { return frame_->visible_rect().width(); }
+  int height() const override { return frame_->visible_rect().height(); }
+  webrtc::VideoFrameBuffer::Type type() const override { return webrtc::VideoFrameBuffer::Type::kH264;}
+
+  const uint8_t* Data() const override {
+    return frame_->data(0);
+  }
+
+  int Data_len() const override {
+    return frame_->data_size();
+  }
+
+  scoped_refptr<media::VideoFrame> frame_;
+};
+
 void IsValidFrame(const scoped_refptr<media::VideoFrame>& frame) {
   // Paranoia checks.
   DCHECK(frame);
@@ -72,13 +94,16 @@ void IsValidFrame(const scoped_refptr<media::VideoFrame>& frame) {
       frame->format(), frame->storage_type(), frame->coded_size(),
       frame->visible_rect(), frame->natural_size()));
   DCHECK(media::PIXEL_FORMAT_I420 == frame->format() ||
+         media::PIXEL_FORMAT_H264 == frame->format() ||
          media::PIXEL_FORMAT_I420A == frame->format());
-  CHECK(reinterpret_cast<void*>(frame->data(media::VideoFrame::kYPlane)));
-  CHECK(reinterpret_cast<void*>(frame->data(media::VideoFrame::kUPlane)));
-  CHECK(reinterpret_cast<void*>(frame->data(media::VideoFrame::kVPlane)));
-  CHECK(frame->stride(media::VideoFrame::kYPlane));
-  CHECK(frame->stride(media::VideoFrame::kUPlane));
-  CHECK(frame->stride(media::VideoFrame::kVPlane));
+  if(media::PIXEL_FORMAT_H264 != frame->format()) {
+    CHECK(reinterpret_cast<void*>(frame->data(media::VideoFrame::kYPlane)));
+    CHECK(reinterpret_cast<void*>(frame->data(media::VideoFrame::kUPlane)));
+    CHECK(reinterpret_cast<void*>(frame->data(media::VideoFrame::kVPlane)));
+    CHECK(frame->stride(media::VideoFrame::kYPlane));
+    CHECK(frame->stride(media::VideoFrame::kUPlane));
+    CHECK(frame->stride(media::VideoFrame::kVPlane));
+  }
 }
 
 }  // anonymous namespace
@@ -93,6 +118,10 @@ WebRtcVideoFrameAdapter::~WebRtcVideoFrameAdapter() {
 }
 
 webrtc::VideoFrameBuffer::Type WebRtcVideoFrameAdapter::type() const {
+  if(media::PIXEL_FORMAT_H264 == frame_->format())
+  {
+    return Type::kH264;
+  }
   return Type::kNative;
 }
 
@@ -122,6 +151,12 @@ WebRtcVideoFrameAdapter::ToI420() {
         FrameAdapterWithA<webrtc::I420ABufferInterface>>(frame_);
   }
   return new rtc::RefCountedObject<FrameAdapter<webrtc::I420BufferInterface>>(
+      frame_);
+}
+
+rtc::scoped_refptr<webrtc::H264BufferInterface>
+WebRtcVideoFrameAdapter::ToH264() {
+  return new rtc::RefCountedObject<CodedFrameAdapter<webrtc::H264BufferInterface>>(
       frame_);
 }
 

@@ -271,7 +271,9 @@ class WebMediaPlayerImpl::FrameDeliverer {
   }
 
   ~FrameDeliverer() {
-    DCHECK(io_thread_checker_.CalledOnValidThread());
+//    VIZIO: srcObject reseting happens from main_thread
+//           Hence commenting this out.
+//    DCHECK(io_thread_checker_.CalledOnValidThread());
   }
 
   void OnVideoFrame(scoped_refptr<media::VideoFrame> frame) {

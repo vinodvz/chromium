@@ -101,6 +101,14 @@ class CAPTURE_EXPORT VideoCaptureDeviceClient
                                  base::TimeDelta timestamp,
                                  int frame_feedback_id);
 
+  // A branch of OnIncomingCapturedData for H264 frame_format.pixel_format.
+  void OnIncomingCapturedH264Data(const uint8_t* data,
+                                 int length,
+                                 const VideoCaptureFormat& frame_format,
+                                 base::TimeTicks reference_time,
+                                 base::TimeDelta timestamp,
+                                 int frame_feedback_id);
+
   const VideoCaptureBufferType target_buffer_type_;
 
   // The receiver to which we post events.

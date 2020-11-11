@@ -19,6 +19,7 @@
 #include "media/capture/video/scoped_buffer_pool_reservation.h"
 #include "media/capture/video/video_capture_buffer_handle.h"
 #include "media/capture/video/video_capture_buffer_pool.h"
+#include "media/capture/video/shared_memory_buffer_tracker.h"
 #include "media/capture/video/video_capture_jpeg_decoder.h"
 #include "media/capture/video/video_frame_receiver.h"
 #include "media/capture/video_capture_types.h"
@@ -145,9 +146,6 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
   DFAKE_SCOPED_RECURSIVE_LOCK(call_from_producer_);
   TRACE_EVENT0("media", "VideoCaptureDeviceClient::OnIncomingCapturedData");
 
-  VideoPixelFormat pix_format = (format.pixel_format == PIXEL_FORMAT_H264)?
-                                       PIXEL_FORMAT_H264:PIXEL_FORMAT_I420;
-
   if (last_captured_pixel_format_ != format.pixel_format) {
     OnLog("Pixel format: " + VideoPixelFormatToString(format.pixel_format));
     last_captured_pixel_format_ = format.pixel_format;
@@ -171,6 +169,10 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
     return OnIncomingCapturedY16Data(data, length, format, reference_time,
                                      timestamp, frame_feedback_id);
   }
+  if (format.pixel_format == PIXEL_FORMAT_H264) {
+    return OnIncomingCapturedH264Data(data, length, format, reference_time,
+                                     timestamp, frame_feedback_id);
+  }
 
   // |chopped_{width,height} and |new_unrotated_{width,height}| are the lowest
   // bit decomposition of {width, height}, grabbing the odd and even parts.
@@ -189,7 +191,7 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
   const gfx::Size dimensions(destination_width, destination_height);
   Buffer buffer;
   auto reservation_result_code = ReserveOutputBuffer(
-      dimensions, pix_format, frame_feedback_id, &buffer);
+      dimensions, PIXEL_FORMAT_I420, frame_feedback_id, &buffer);
   if (reservation_result_code != ReserveResult::kSucceeded) {
     receiver_->OnFrameDropped(
         ConvertReservationFailureToFrameDropReason(reservation_result_code));
@@ -271,17 +273,14 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
     case PIXEL_FORMAT_MJPEG:
       origin_colorspace = libyuv::FOURCC_MJPG;
       break;
-    case PIXEL_FORMAT_H264:
-      origin_colorspace = libyuv::FOURCC_H264;
-      break;
     default:
       NOTREACHED();
   }
 
   // The input |length| can be greater than the required buffer size because of
   // paddings and/or alignments, but it cannot be smaller.
-//  DCHECK_GE(static_cast<size_t>(length), format.ImageAllocationSize());
-///VINOD: Check what is happening here for MJPEG
+  DCHECK_GE(static_cast<size_t>(length), format.ImageAllocationSize());
+
   if (external_jpeg_decoder_) {
     const VideoCaptureJpegDecoder::STATUS status =
         external_jpeg_decoder_->GetStatus();
@@ -298,9 +297,7 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
     }
   }
 
-  if(format.pixel_format == PIXEL_FORMAT_H264) {
-    memcpy(y_plane_data, data, length);
-  } else if (libyuv::ConvertToI420(
+  if (libyuv::ConvertToI420(
           data, length, y_plane_data, yplane_stride, u_plane_data,
           uv_plane_stride, v_plane_data, uv_plane_stride, crop_x, crop_y,
           format.frame_size.width(),
@@ -314,8 +311,7 @@ void VideoCaptureDeviceClient::OnIncomingCapturedData(
   }
 
   const VideoCaptureFormat output_format =
-      VideoCaptureFormat(dimensions, format.frame_rate,
-      pix_format);
+      VideoCaptureFormat(dimensions, format.frame_rate, PIXEL_FORMAT_I420);
   OnIncomingCapturedBuffer(std::move(buffer), output_format, reference_time,
                            timestamp);
 }
@@ -446,6 +442,7 @@ VideoCaptureDeviceClient::ReserveOutputBuffer(const gfx::Size& frame_size,
   }
 
   *buffer = MakeBufferStruct(buffer_pool_, buffer_id, frame_feedback_id);
+  buffer->size = SharedMemoryBufferTracker::CalculateRequiredBufferSize(frame_size, pixel_format, nullptr);
   return ReserveResult::kSucceeded;
 }
 
@@ -480,6 +477,7 @@ void VideoCaptureDeviceClient::OnIncomingCapturedBufferExt(
   info->coded_size = format.frame_size;
   info->visible_rect = visible_rect;
   info->metadata = metadata.GetInternalValues().Clone();
+  info->frame_data_size = buffer.size;
 
   buffer_pool_->HoldForConsumers(buffer.id, 1);
   receiver_->OnFrameReadyInBuffer(
@@ -542,6 +540,35 @@ void VideoCaptureDeviceClient::OnIncomingCapturedY16Data(
   memcpy(buffer_access->data(), data, length);
   const VideoCaptureFormat output_format = VideoCaptureFormat(
       format.frame_size, format.frame_rate, PIXEL_FORMAT_Y16);
+  OnIncomingCapturedBuffer(std::move(buffer), output_format, reference_time,
+                           timestamp);
+}
+
+void VideoCaptureDeviceClient::OnIncomingCapturedH264Data(
+    const uint8_t* data,
+    int length,
+    const VideoCaptureFormat& format,
+    base::TimeTicks reference_time,
+    base::TimeDelta timestamp,
+    int frame_feedback_id) {
+  Buffer buffer;
+  //VINOD: Cheating SharedMemoryBufferTracker
+  const gfx::Size frame_size(length,1);
+  const auto reservation_result_code = ReserveOutputBuffer(
+      frame_size, PIXEL_FORMAT_H264, frame_feedback_id, &buffer);
+  // The input |length| can be greater than the required buffer size because of
+  // paddings and/or alignments, but it cannot be smaller.
+//  DCHECK_GE(static_cast<size_t>(length), format.ImageAllocationSize());
+  // Failed to reserve output buffer, so drop the frame.
+  if (reservation_result_code != ReserveResult::kSucceeded) {
+    receiver_->OnFrameDropped(
+        ConvertReservationFailureToFrameDropReason(reservation_result_code));
+    return;
+  }
+  auto buffer_access = buffer.handle_provider->GetHandleForInProcessAccess();
+  memcpy(buffer_access->data(), data, length);
+  const VideoCaptureFormat output_format = VideoCaptureFormat(
+      format.frame_size, format.frame_rate, PIXEL_FORMAT_H264);
   OnIncomingCapturedBuffer(std::move(buffer), output_format, reference_time,
                            timestamp);
 }

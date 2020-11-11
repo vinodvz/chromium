@@ -381,17 +381,23 @@ void VideoCaptureImpl::OnBufferReady(int32_t buffer_id,
             info->timestamp);
         frame->AddSharedMemoryHandle(buffer_context->shared_memory()->handle());
       } else {
+/*******VIZIO TEST CODE START****************/
 FILE *fp=NULL; //fopen("/tmp/conj_video.raw","ab");
 if(fp) {
-fwrite(buffer_context->shared_memory()->memory(), buffer_context->shared_memory_size(), 1, fp);
+fwrite(buffer_context->shared_memory()->memory(),
+                       buffer_context->shared_memory_size(), 1, fp);
 fflush(fp);
 fclose(fp);
 }
+/*******VIZIO TEST CODE END****************/
         frame = media::VideoFrame::WrapExternalSharedMemory(
             info->pixel_format, info->coded_size, info->visible_rect,
             info->visible_rect.size(),
             static_cast<uint8_t*>(buffer_context->shared_memory()->memory()),
-            buffer_context->shared_memory_size(),
+            // VIZIO: SharedMemoryBufferTracker reuses memory with >= size.
+            // Need accurate size. Hence commenting it cout
+            /* buffer_context->shared_memory_size(), */
+            info->frame_data_size,
             buffer_context->shared_memory()->handle(),
             0 /* shared_memory_offset */, info->timestamp);
       }

@@ -36,7 +36,9 @@ class MediaStreamVideoRendererSink::FrameDeliverer {
   }
 
   ~FrameDeliverer() {
-    DCHECK(io_thread_checker_.CalledOnValidThread());
+//    VIZIO: srcObject reseting happens from main_thread
+//           Hence commenting this out.
+//    DCHECK(io_thread_checker_.CalledOnValidThread());
     DCHECK(state_ == STARTED || state_ == PAUSED) << state_;
   }
 

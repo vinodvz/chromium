@@ -604,6 +604,8 @@ scoped_refptr<VideoFrame> VideoFrame::WrapVideoFrame(
     }
   }
 
+  wrapping_frame->data_size_ = frame->data_size_;
+
 #if defined(OS_LINUX)
   // If there are any |dmabuf_fds_| plugged in, we should duplicate them.
   if (frame->storage_type() == STORAGE_DMABUFS) {
@@ -1068,6 +1070,7 @@ VideoFrame::VideoFrame(const VideoFrameLayout& layout,
       << coded_size().ToString();
   memset(&mailbox_holders_, 0, sizeof(mailbox_holders_));
   memset(&data_, 0, sizeof(data_));
+  data_size_ = natural_size.width() * natural_size.height();
 }
 
 VideoFrame::~VideoFrame() {

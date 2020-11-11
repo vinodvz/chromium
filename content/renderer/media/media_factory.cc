@@ -267,13 +267,6 @@ blink::WebMediaPlayer* MediaFactory::CreateMediaPlayer(
       render_frame_->GetWebFrame()->GetSecurityOrigin();
   blink::WebMediaStream web_stream =
       GetWebMediaStreamFromWebMediaPlayerSource(source);
-#if 1
-  if (!web_stream.IsNull()) {
-LOG(ERROR) << "@@@@@@@@@@@@Creating WebMediaPlayerForMediaStream";
-    return CreateWebMediaPlayerForMediaStream(
-        client, sink_id, security_origin, web_frame, layer_tree_view, settings);
-}
-#endif
 
 #if 0 //Webstream going to be played in the CMABackend
   if (!web_stream.IsNull())
