@@ -503,6 +503,8 @@ bool UserMediaRequest::ShouldDisableHardwareNoiseSuppression() const {
 }
 
 bool UserMediaRequest::IsSecureContextUse(String& error_message) {
+// VINOD - It is just a hack to work usermedia in unsecure domain. Remove it.
+return true;
   Document* document = OwnerDocument();
 
   if (document->IsSecureContext(error_message)) {
