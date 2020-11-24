@@ -1028,6 +1028,8 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // True if StartPipeline() completed a lazy load startup.
   bool did_lazy_load_ = false;
 
+  int routing_id_;
+
   DISALLOW_COPY_AND_ASSIGN(WebMediaPlayerImpl);
 };
 

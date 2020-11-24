@@ -101,10 +101,15 @@ namespace media {
 
 namespace {
 
-void SetSinkIdOnMediaThread(scoped_refptr<WebAudioSourceProviderImpl> sink,
+void SetSinkIdOnMediaThread(
+    scoped_refptr<content::MediaStreamAudioRenderer> msSink,
+            scoped_refptr<WebAudioSourceProviderImpl> sink,
                             const std::string& device_id,
                             OutputDeviceStatusCB callback) {
-  sink->SwitchOutputDevice(device_id, std::move(callback));
+  if(msSink)
+    msSink->SwitchOutputDevice(device_id, std::move(callback));
+  else
+    sink->SwitchOutputDevice(device_id, std::move(callback));
 }
 
 bool IsBackgroundSuspendEnabled(WebMediaPlayerDelegate* delegate) {
@@ -271,9 +276,7 @@ class WebMediaPlayerImpl::FrameDeliverer {
   }
 
   ~FrameDeliverer() {
-//    VIZIO: srcObject reseting happens from main_thread
-//           Hence commenting this out.
-//    DCHECK(io_thread_checker_.CalledOnValidThread());
+    DCHECK(io_thread_checker_.CalledOnValidThread());
   }
 
   void OnVideoFrame(scoped_refptr<media::VideoFrame> frame) {
@@ -459,6 +462,8 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
   audio_source_provider_ = new WebAudioSourceProviderImpl(
       params->audio_renderer_sink(), media_log_.get());
 
+  routing_id_ = params->audio_renderer_sink()->getOwnerId();
+
   if (observer_)
     observer_->SetClient(this);
 
@@ -502,6 +507,15 @@ WebMediaPlayerImpl::~WebMediaPlayerImpl() {
   if (!surface_layer_for_video_enabled_ && video_layer_) {
     video_layer_->StopUsingProvider();
   }
+
+  if (frame_deliverer_)
+    io_task_runner_->DeleteSoon(FROM_HERE, frame_deliverer_.release());
+
+  if (video_frame_provider_)
+    video_frame_provider_->Stop();
+
+  if (audio_renderer_)
+    audio_renderer_->Stop();
 
   vfc_task_runner_->DeleteSoon(FROM_HERE, std::move(compositor_));
 
@@ -831,8 +845,8 @@ void WebMediaPlayerImpl::ActiveStateChanged(bool is_active) {
   // collected.
   // Note that the video renderer should not be stopped because the ended video
   // track is expected to produce a black frame after becoming inactive.
-//  if (audio_renderer_)
-//    audio_renderer_->Stop();
+  if (audio_renderer_)
+    audio_renderer_->Stop();
 }
 
 void WebMediaPlayerImpl::Reload() {
@@ -893,13 +907,9 @@ void WebMediaPlayerImpl::ReloadVideo() {
 }
 
 void WebMediaPlayerImpl::ReloadAudio() {
-#if 0
 //  DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(main_task_runner_->BelongsToCurrentThread());
   DCHECK(!web_stream_.IsNull());
-  RenderFrame* const frame = RenderFrame::FromWebFrame(frame_);
-  if (!frame)
-    return;
 
   blink::WebVector<blink::WebMediaStreamTrack> audio_tracks =
       web_stream_.AudioTracks();
@@ -922,7 +932,7 @@ void WebMediaPlayerImpl::ReloadAudio() {
 
       SetNetworkState(WebMediaPlayer::kNetworkStateLoading);
       audio_renderer_ = renderer_factory_->GetAudioRenderer(
-                              web_stream_, frame->GetRoutingID(),
+                              web_stream_, routing_id_,
                                 initial_audio_output_device_id_);
 
       // |audio_renderer_| can be null in tests.
@@ -942,7 +952,6 @@ void WebMediaPlayerImpl::ReloadAudio() {
     default:
       break;
   }
-#endif
 }
 
 void WebMediaPlayerImpl::Play() {
@@ -959,6 +968,13 @@ void WebMediaPlayerImpl::Play() {
     return;
   }
 #endif
+
+  if (video_frame_provider_)
+    video_frame_provider_->Resume();
+
+  if (audio_renderer_)
+    audio_renderer_->Play();
+
   // TODO(sandersd): Do we want to reset the idle timer here?
   delegate_->SetIdle(delegate_id_, false);
   paused_ = false;
@@ -1121,9 +1137,13 @@ void WebMediaPlayerImpl::SetVolume(double volume) {
   DVLOG(1) << __func__ << "(" << volume << ")";
   DCHECK(main_task_runner_->BelongsToCurrentThread());
   volume_ = volume;
-  pipeline_controller_.SetVolume(volume_ * volume_multiplier_);
-  if (watch_time_reporter_)
-    watch_time_reporter_->OnVolumeChange(volume);
+  if (audio_renderer_.get()) {
+    audio_renderer_->SetVolume(volume_ * volume_multiplier_);
+  } else {
+    pipeline_controller_.SetVolume(volume_ * volume_multiplier_);
+    if (watch_time_reporter_)
+      watch_time_reporter_->OnVolumeChange(volume);
+  }
   delegate_->DidPlayerMutedStatusChange(delegate_id_, volume == 0.0);
 
   // The play state is updated because the player might have left the autoplay
@@ -1186,9 +1206,10 @@ void WebMediaPlayerImpl::SetSinkId(
 
   media::OutputDeviceStatusCB callback =
       media::ConvertToOutputDeviceStatusCB(std::move(web_callback));
+
   media_task_runner_->PostTask(
-      FROM_HERE, base::BindOnce(&SetSinkIdOnMediaThread, audio_source_provider_,
-                                sink_id.Utf8(), std::move(callback)));
+      FROM_HERE, base::BindOnce(&SetSinkIdOnMediaThread, audio_renderer_,
+        audio_source_provider_, sink_id.Utf8(), std::move(callback)));
 }
 
 STATIC_ASSERT_ENUM(WebMediaPlayer::kPreloadNone, MultibufferDataSource::NONE);
@@ -1214,7 +1235,7 @@ bool WebMediaPlayerImpl::HasVideo() const {
 bool WebMediaPlayerImpl::HasAudio() const {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
 
-  return pipeline_metadata_.has_audio;
+  return (audio_renderer_.get() || pipeline_metadata_.has_audio);
 }
 
 void WebMediaPlayerImpl::EnabledAudioTracksChanged(
@@ -1875,23 +1896,32 @@ void WebMediaPlayerImpl::OnDemuxerOpened() {
           base::Bind(&WebMediaPlayerImpl::OnSourceError, AsWeakPtr())),
           frame_deliverer_->GetRepaintCallback(), io_task_runner_);
 
-//  content::RenderFrame* const frame =
-//                          content::RenderFrame::FromWebFrame(frame_);
+  audio_renderer_ = renderer_factory_->GetAudioRenderer(
+      web_stream_, routing_id_, initial_audio_output_device_id_);
 
-//  int routing_id = MSG_ROUTING_NONE;
-//  GURL url = source.IsURL() ? GURL(source.GetAsURL()) : GURL();
+  if (!audio_renderer_)
+    LOG(ERROR) << "Failed to instantiate audio renderer.";
 
-//  if (frame) {
-//    Report UMA and RAPPOR metrics.
-//    media::ReportMetrics(load_type, url, *frame_, media_log_.get());
-//    routing_id = frame->GetRoutingID();
-//  }
-
-    if (!video_frame_provider_) {
-      LOG(ERROR) << "video_frame_provider creation failed.";
+    if (!video_frame_provider_ && !audio_renderer_) {
+      LOG(ERROR) << "Stream creation failed.";
       SetNetworkState(WebMediaPlayer::kNetworkStateNetworkError);
       return;
-    } else {
+    }
+
+    if (audio_renderer_) {
+      audio_renderer_->SetVolume(volume_);
+      audio_renderer_->Start();
+
+      // Store the ID of audio track being played in |current_video_track_id_|
+      if (!web_stream_.IsNull()) {
+        blink::WebVector<blink::WebMediaStreamTrack> audio_tracks =
+            web_stream_.AudioTracks();
+        DCHECK_GT(audio_tracks.size(), 0U);
+        current_audio_track_id_ = audio_tracks[0].Id();
+      }
+    }
+
+    if (video_frame_provider_) {
       video_frame_provider_->Start();
 
       // Store the ID of video track being played in |current_video_track_id_|
@@ -1902,6 +1932,19 @@ void WebMediaPlayerImpl::OnDemuxerOpened() {
         current_video_track_id_ = video_tracks[0].Id();
       }
     }
+
+    // When associated with an <audio> element, we don't want to wait for the
+    // first video fram to become available as we do for <video> elements
+    // (<audio> elements can also be assigned video tracks).
+    // For more details, see crbug.com/738379
+#if 0 //VINOD: In audio only mode, we need to handle differently - TBD
+    if (audio_renderer_ &&
+        (client_->IsAudioElement() || !video_frame_provider_)) {
+      // This is audio-only mode.
+      SetReadyState(WebMediaPlayer::kReadyStateHaveMetadata);
+      SetReadyState(WebMediaPlayer::kReadyStateHaveEnoughData);
+    }
+#endif
   } else {
     client_->MediaSourceOpened(new WebMediaSourceImpl(chunk_demuxer_));
   }
@@ -2888,45 +2931,6 @@ void WebMediaPlayerImpl::StartPipeline() {
                 BindToCurrentLoop(
                 base::Bind(&WebMediaPlayerImpl::OnProgress, AsWeakPtr())),
                 media_log_.get());
-#if 0
-    frame_deliverer_.reset(new WebMediaPlayerImpl::FrameDeliverer(
-                AsWeakPtr(),
-                base::BindRepeating(&FrameDemuxer::EnqueueFrame,
-                base::Unretained(fdemuxer)),
-                media_task_runner_, worker_task_runner_));
-
-    video_frame_provider_ = renderer_factory_->GetVideoRenderer(
-                  web_stream_,
-                  media::BindToCurrentLoop(
-                  base::Bind(&WebMediaPlayerImpl::OnSourceError, AsWeakPtr())),
-    frame_deliverer_->GetRepaintCallback(), io_task_runner_);
-
-//  content::RenderFrame* const frame = content::RenderFrame::FromWebFrame(frame_);
-
-//  int routing_id = MSG_ROUTING_NONE;
-//  GURL url = source.IsURL() ? GURL(source.GetAsURL()) : GURL();
-
-//  if (frame) {
-//    Report UMA and RAPPOR metrics.
-//    media::ReportMetrics(load_type, url, *frame_, media_log_.get());
-//    routing_id = frame->GetRoutingID();
-//  }
-
-    if (!video_frame_provider_) {
-      SetNetworkState(WebMediaPlayer::kNetworkStateNetworkError);
-      return;
-    } else {
-      video_frame_provider_->Start();
-
-      // Store the ID of video track being played in |current_video_track_id_|
-      if (!web_stream_.IsNull()) {
-        blink::WebVector<blink::WebMediaStreamTrack> video_tracks =
-                                                    web_stream_.VideoTracks();
-        DCHECK_GT(video_tracks.size(), 0U);
-        current_video_track_id_ = video_tracks[0].Id();
-    }
-  }
-#endif
     demuxer_.reset(fdemuxer);
 
   } else if (load_type_ != kLoadTypeMediaSource) {

@@ -10,6 +10,7 @@
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "media/base/audio_hash.h"
 #include "media/base/fake_audio_worker.h"
+#include "ipc/ipc_message.h"
 
 namespace media {
 
@@ -116,6 +117,10 @@ void NullAudioSink::StartAudioHashForTesting() {
 
 std::string NullAudioSink::GetAudioHashForTesting() {
   return audio_hash_ ? audio_hash_->ToString() : std::string();
+}
+
+int NullAudioSink::getOwnerId() {
+  return MSG_ROUTING_NONE;
 }
 
 }  // namespace media

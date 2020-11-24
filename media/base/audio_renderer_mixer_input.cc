@@ -235,4 +235,8 @@ void AudioRendererMixerInput::OnDeviceSwitchReady(
   std::move(switch_cb).Run(device_info.device_status());
 }
 
+int AudioRendererMixerInput::getOwnerId() {
+  return owner_id_;
+}
+
 }  // namespace media

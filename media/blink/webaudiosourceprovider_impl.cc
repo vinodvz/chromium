@@ -285,6 +285,11 @@ void WebAudioSourceProviderImpl::SwitchOutputDevice(
     sink_->SwitchOutputDevice(device_id, std::move(callback));
 }
 
+int WebAudioSourceProviderImpl::getOwnerId() {
+  base::AutoLock auto_lock(sink_lock_);
+  return sink_->getOwnerId();
+}
+
 void WebAudioSourceProviderImpl::SetCopyAudioCallback(CopyAudioCB callback) {
   DCHECK(!callback.is_null());
   tee_filter_->SetCopyAudioCallback(std::move(callback));

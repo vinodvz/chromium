@@ -122,6 +122,8 @@ class SwitchableAudioRendererSink : public RestartableAudioRendererSink {
   virtual void SwitchOutputDevice(const std::string& device_id,
                                   OutputDeviceStatusCB callback) = 0;
 
+  virtual int getOwnerId() = 0;
+
  protected:
   ~SwitchableAudioRendererSink() override {}
 };

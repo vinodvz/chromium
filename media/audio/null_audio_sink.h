@@ -40,6 +40,9 @@ class MEDIA_EXPORT NullAudioSink : public SwitchableAudioRendererSink {
   void SwitchOutputDevice(const std::string& device_id,
                           OutputDeviceStatusCB callback) override;
 
+  // SwitchableAudioRendererSink implementation.
+  int getOwnerId() override;
+
   // Enables audio frame hashing.  Must be called prior to Initialize().
   void StartAudioHashForTesting();
 

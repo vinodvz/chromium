@@ -72,6 +72,7 @@ class MEDIA_BLINK_EXPORT WebAudioSourceProviderImpl
   bool CurrentThreadIsRenderingThread() override;
   void SwitchOutputDevice(const std::string& device_id,
                           OutputDeviceStatusCB callback) override;
+  int getOwnerId() override;
 
   // These methods allow a client to get a copy of the rendered audio.
   void SetCopyAudioCallback(CopyAudioCB callback);
