@@ -237,7 +237,7 @@ CastContentBrowserClient::GetVideoResolutionPolicy() {
 }
 
 media::CmaBackendFactory* CastContentBrowserClient::GetCmaBackendFactory() {
-  DCHECK(GetMediaTaskRunner()->BelongsToCurrentThread());
+//  DCHECK(GetMediaTaskRunner()->BelongsToCurrentThread());
   if (!cma_backend_factory_) {
     cma_backend_factory_ = std::make_unique<media::CmaBackendFactoryImpl>(
         media_pipeline_backend_manager());
